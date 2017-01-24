@@ -1,6 +1,6 @@
 #iCal Sensor Support for Home Assistant
 
-Put this file (ical.py) in your home-assistant config directory under custom_components/sensors.
+Put this file (ical.py) in your home-assistant config directory under custom_components/sensor.
 in your configuration.yaml you'll need:
 
 ```
