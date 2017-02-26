@@ -18,6 +18,7 @@ REQUIREMENTS = ['icalendar', 'requests', 'arrow>=0.10.0']
 
 ICON = 'mdi:calendar'
 DEFAULT_NAME = 'iCal Sensor'
+DEFAULT_MAX_EVENTS = 5
 
 # Return cached results if last scan was less then this time ago.
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=120)
@@ -27,6 +28,7 @@ def setup_platform(hass, config, add_devices_callback, discovery_info=None):
     """Setup the iCal Sensor."""
     url = config.get('url')
     name = config.get('name', DEFAULT_NAME)
+    maxevents = config.get('maxevents',DEFAULT_MAX_EVENTS)
 
     if url is None:
         _LOGGER.error('Missing required variable: "url"')
@@ -39,8 +41,13 @@ def setup_platform(hass, config, add_devices_callback, discovery_info=None):
         _LOGGER.error('Unable to fetch iCal')
         return False
 
-    add_devices_callback([ICalSensor(hass, data_object,
-                                          name)])
+    sensors = []
+    for eventnumber in range(maxevents):
+        sensors.append(ICalSensor(hass,data_object,eventnumber))
+
+    add_devices_callback(sensors)
+
+   # add_devices_callback([ICalSensor(hass, data_object,name)])
 
 def dateparser(calendar,date):
     events = []
@@ -53,18 +60,21 @@ def dateparser(calendar,date):
             end = arrow.get(event['DTEND'].dt)
             end = end.replace(tzinfo='local')
         else: end = event['DTEND'].dt
-        if start <= date <= end:
+        if start.date() >= date.date():
             events.append(dict(name=event['SUMMARY'],begin=start))
-    return events
+    sorted_events = sorted(events, key=lambda k: k['begin'])
+    _LOGGER.info(sorted_events)
+    return sorted_events
 
 # pylint: disable=too-few-public-methods
 class ICalSensor(Entity):
     """Implementation of a iCal sensor."""
-    def __init__(self, hass, data_object, name):
+    def __init__(self, hass, data_object, eventnumber):
         """Initialize the sensor."""
+        self._eventno = eventnumber
         self._hass = hass
         self.data_object = data_object
-        self._name = name
+        self._name = 'event_' + str(eventnumber)
         self.update()
 
     @property
@@ -86,11 +96,14 @@ class ICalSensor(Entity):
         """Get the latest update and set the state."""
         self.data_object.update()
         e = self.data_object.data
-
-        if not e:
-            self._state = "No event today"
+        if self._eventno not in range(0,len(e)):
+            self._state = "No event"
         else:
-            self._state = "{} - {}".format(e['begin'].humanize(), e['name'])
+            if not e:
+                self._state = "No event"
+            else:
+                val = e[self._eventno]
+                self._state = "{} - {}".format( val['name'], val['begin'].strftime("%-d %B %Y %H:%M"))
 
 #pylint: disable=too-few-public-methods
 class ICalData(object):
@@ -112,14 +125,7 @@ class ICalData(object):
             today = arrow.utcnow()
             events = dateparser(cal,today)
 
-            if not events:
-                tomorrow = today.replace(days=+1)
-                events = dateparser(cal,tomorrow)
-
-                if events:
-                    self.data = events[0]
-            else:
-                self.data = events[0]
+            self.data = events
 
         except requests.exceptions.RequestException:
             _LOGGER.error("Error fetching data: %s", self._request)
