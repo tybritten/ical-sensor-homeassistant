@@ -4,14 +4,14 @@ Support for iCal-URLs
 For more details about this platform, please refer to the documentation at
 https://home-assistant.io/components/sensor.ical/
 """
+import datetime as dt
 import logging
 from datetime import timedelta
-import datetime as dt
-from homeassistant.util import Throttle
+
+import requests
+
 from homeassistant.helpers.entity import Entity
-
-import icalendar, requests, arrow
-
+from homeassistant.util import Throttle
 
 _LOGGER = logging.getLogger(__name__)
 REQUIREMENTS = ['icalendar', 'requests', 'arrow>=0.10.0']
@@ -19,12 +19,14 @@ REQUIREMENTS = ['icalendar', 'requests', 'arrow>=0.10.0']
 ICON = 'mdi:calendar'
 DEFAULT_NAME = 'iCal Sensor'
 DEFAULT_MAX_EVENTS = 5
+PLATFORM = 'ical'
+SCAN_INTERVAL = timedelta(minutes=1)
 
 # Return cached results if last scan was less then this time ago.
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=120)
 
 
-def setup_platform(hass, config, add_devices_callback, discovery_info=None):
+def setup_platform(hass, config, add_entities, discovery_info=None):
     """Setup the iCal Sensor."""
     url = config.get('url')
     name = config.get('name', DEFAULT_NAME)
@@ -43,23 +45,27 @@ def setup_platform(hass, config, add_devices_callback, discovery_info=None):
 
     sensors = []
     for eventnumber in range(maxevents):
-        sensors.append(ICalSensor(hass,data_object,eventnumber))
+        sensors.append(ICalSensor(hass,data_object,name, eventnumber))
 
-    add_devices_callback(sensors)
+    add_entities(sensors)
 
    # add_devices_callback([ICalSensor(hass, data_object,name)])
 
 def dateparser(calendar,date):
+    import arrow
     events = []
     for event in calendar.walk('VEVENT'):
         if type(event['DTSTART'].dt) is dt.date:
             start = arrow.get(event['DTSTART'].dt)
             start = start.replace(tzinfo='local')
-        else: start = event['DTSTART'].dt
-        if type(event['DTEND'].dt) is dt.date:
-            end = arrow.get(event['DTEND'].dt)
-            end = end.replace(tzinfo='local')
-        else: end = event['DTEND'].dt
+        else: 
+            start = event['DTSTART'].dt
+        if 'DTEND' in event:
+            if type(event['DTEND'].dt) is dt.date:
+                end = arrow.get(event['DTEND'].dt)
+                end = end.replace(tzinfo='local')
+            else: 
+                end = event['DTEND'].dt
         if start.date() >= date.date():
             events.append(dict(name=event['SUMMARY'],begin=start))
     sorted_events = sorted(events, key=lambda k: k['begin'])
@@ -69,12 +75,12 @@ def dateparser(calendar,date):
 # pylint: disable=too-few-public-methods
 class ICalSensor(Entity):
     """Implementation of a iCal sensor."""
-    def __init__(self, hass, data_object, eventnumber):
+    def __init__(self, hass, data_object, sensor_name, eventnumber):
         """Initialize the sensor."""
         self._eventno = eventnumber
         self._hass = hass
         self.data_object = data_object
-        self._name = 'event_' + str(eventnumber)
+        self._name = sensor_name + '_event_' + str(eventnumber)
         self.update()
 
     @property
@@ -115,6 +121,9 @@ class ICalData(object):
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
+        import arrow
+        import icalendar
+
         self.data = []
 
         try:
