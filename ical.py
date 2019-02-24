@@ -85,7 +85,7 @@ def dateparser(calendar, date):
         events.append(event_dict)
 
     sorted_events = sorted(events, key=lambda k: k['start'])
-    _LOGGER.info(sorted_events)
+    _LOGGER.debug(sorted_events)
     return sorted_events
 
 
@@ -133,9 +133,7 @@ class ICalSensor(Entity):
     def update(self):
         """Get the latest update and set the state and attributes."""
         # Defaults:
-        self._name = None
         self._state = "No event"
-        self._start = None
         # I guess the number and details of attributes probably
         # shouldn't change, so we should really prepopulate them.
         self._event_attributes = {
@@ -145,16 +143,17 @@ class ICalSensor(Entity):
         }
         # Get the data
         self.data_object.update()
-        
+
         event_list = self.data_object.data
         if event_list and (self._eventno < len(event_list)):
             val = event_list[self._eventno]
-            self._event_attributes.update(val)
-            self._start = val.get('start')
-            self._name = val.get('name')
+            start = val['start'].datetime
+            self._event_attributes['start'] = start
+            name = val.get('name', 'unknown')
+            self._event_attributes['name'] = name
             self._state = "{} - {}".format(
-                val['name'],
-                val['start'].strftime("%-d %B %Y %H:%M")
+                name,
+                start.strftime("%-d %B %Y %H:%M")
             )
 
 
