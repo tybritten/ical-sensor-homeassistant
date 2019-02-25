@@ -30,7 +30,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     """Setup the iCal Sensor."""
     url = config.get('url')
     name = config.get('name', DEFAULT_NAME)
-    maxevents = config.get('maxevents',DEFAULT_MAX_EVENTS)
+    maxevents = config.get('maxevents', DEFAULT_MAX_EVENTS)
 
     if url is None:
         _LOGGER.error('Missing required variable: "url"')
@@ -45,42 +45,69 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
     sensors = []
     for eventnumber in range(maxevents):
-        sensors.append(ICalSensor(hass,data_object,name, eventnumber))
+        sensors.append(ICalSensor(hass, data_object, name, eventnumber))
 
     add_entities(sensors)
 
-   # add_devices_callback([ICalSensor(hass, data_object,name)])
 
-def dateparser(calendar,date):
+def dateparser(calendar, date):
+    """
+    Takes a calendar and a date, and returns a sorted list
+    of events on or after that date.
+    """
     import arrow
     events = []
     for event in calendar.walk('VEVENT'):
-        if type(event['DTSTART'].dt) is dt.date:
+
+        if isinstance(event['DTSTART'].dt, dt.date):
             start = arrow.get(event['DTSTART'].dt)
             start = start.replace(tzinfo='local')
-        else: 
+        else:
             start = event['DTSTART'].dt
+
+        # Skip this event if it's in the past
+        if start.date() < date.date():
+            continue
+
+        event_dict = {
+            'name': event['SUMMARY'],
+            'start': start
+        }
+        # Add the end info if present.
         if 'DTEND' in event:
-            if type(event['DTEND'].dt) is dt.date:
+            if isinstance(event['DTEND'].dt, dt.date):
                 end = arrow.get(event['DTEND'].dt)
                 end = end.replace(tzinfo='local')
-            else: 
+            else:
                 end = event['DTEND'].dt
-        if start.date() >= date.date():
-            events.append(dict(name=event['SUMMARY'],begin=start))
-    sorted_events = sorted(events, key=lambda k: k['begin'])
-    _LOGGER.info(sorted_events)
+            event_dict['end'] = end
+
+        events.append(event_dict)
+
+    sorted_events = sorted(events, key=lambda k: k['start'])
+    _LOGGER.debug(sorted_events)
     return sorted_events
+
 
 # pylint: disable=too-few-public-methods
 class ICalSensor(Entity):
-    """Implementation of a iCal sensor."""
+    """
+    Implementation of a iCal sensor.
+    Represents the Nth upcoming event.
+    May have a name like 'sensor.mycalander_event_0' for the first
+    upcoming event.
+    """
     def __init__(self, hass, data_object, sensor_name, eventnumber):
-        """Initialize the sensor."""
+        """
+        Initialize the sensor.
+        sensor_name is typically the name of the calendar.
+        eventnumber indicates which upcoming event this is, starting at zero
+        """
         self._eventno = eventnumber
         self._hass = hass
         self.data_object = data_object
         self._name = sensor_name + '_event_' + str(eventnumber)
+        self._event_attributes = {}
         self.update()
 
     @property
@@ -98,22 +125,44 @@ class ICalSensor(Entity):
         """Return the date of the next event."""
         return self._state
 
-    def update(self):
-        """Get the latest update and set the state."""
-        self.data_object.update()
-        e = self.data_object.data
-        if self._eventno not in range(0,len(e)):
-            self._state = "No event"
-        else:
-            if not e:
-                self._state = "No event"
-            else:
-                val = e[self._eventno]
-                self._state = "{} - {}".format( val['name'], val['begin'].strftime("%-d %B %Y %H:%M"))
+    @property
+    def device_state_attributes(self):
+        """The name and date of the event."""
+        return self._event_attributes
 
-#pylint: disable=too-few-public-methods
+    def update(self):
+        """Get the latest update and set the state and attributes."""
+        # Defaults:
+        self._state = "No event"
+        # I guess the number and details of attributes probably
+        # shouldn't change, so we should really prepopulate them.
+        self._event_attributes = {
+            'name': None,
+            'start': None,
+            'end': None
+        }
+        # Get the data
+        self.data_object.update()
+
+        event_list = self.data_object.data
+        if event_list and (self._eventno < len(event_list)):
+            val = event_list[self._eventno]
+            start = val['start'].datetime
+            self._event_attributes['start'] = start
+            name = val.get('name', 'unknown')
+            self._event_attributes['name'] = name
+            self._state = "{} - {}".format(
+                name,
+                start.strftime("%-d %B %Y %H:%M")
+            )
+
+
+# pylint: disable=too-few-public-methods
 class ICalData(object):
-    """Class for handling the data retrieval."""
+    """
+    Class for handling the data retrieval.
+    The 'data' field is the sorted list of future events.
+    """
 
     def __init__(self, resource):
         self._request = requests.Request('GET', resource).prepare()
@@ -132,7 +181,7 @@ class ICalData(object):
 
             cal = icalendar.Calendar.from_ical(response.text)
             today = arrow.utcnow()
-            events = dateparser(cal,today)
+            events = dateparser(cal, today)
 
             self.data = events
 
