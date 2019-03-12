@@ -20,7 +20,7 @@ etc
 ## Manual Installation
 Put this file (sensor.py) in your home-assistant config directory under custom_components/ical.
 ## Custom Updater
-[custom_components.json](../ical_updater.json)  provide the details Custom Updater needs. See [Custom Updater Installation](https://github.com/custom-components/custom_updater/wiki/Installation) to install it.
+[ical_updater.json](ical_updater.json)  provide the details Custom Updater needs. See [Custom Updater Installation](https://github.com/custom-components/custom_updater/wiki/Installation) to install it.
 ### Setup
 Add the following to your configuration:
 ```
