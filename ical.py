@@ -1,8 +1,6 @@
 """
 Support for iCal-URLs
 
-For more details about this platform, please refer to the documentation at
-https://home-assistant.io/components/sensor.ical/
 """
 import datetime as dt
 import logging
@@ -16,6 +14,7 @@ from homeassistant.util import Throttle
 _LOGGER = logging.getLogger(__name__)
 REQUIREMENTS = ['icalendar', 'requests', 'arrow>=0.10.0']
 
+VERSION = "0.1.1"
 ICON = 'mdi:calendar'
 DEFAULT_NAME = 'iCal Sensor'
 DEFAULT_MAX_EVENTS = 5
