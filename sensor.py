@@ -14,7 +14,7 @@ from homeassistant.util import Throttle
 _LOGGER = logging.getLogger(__name__)
 REQUIREMENTS = ['icalendar', 'requests', 'arrow>=0.10.0']
 
-VERSION = "0.1.1"
+VERSION = "0.2"
 ICON = 'mdi:calendar'
 DEFAULT_NAME = 'iCal Sensor'
 DEFAULT_MAX_EVENTS = 5

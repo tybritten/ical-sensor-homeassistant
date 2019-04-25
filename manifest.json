@@ -1,0 +1,8 @@
+{
+        "domain": "ical",
+        "name": "iCal Sensor",
+        "documentation": "https://github.com/robmarkcole/Hue-sensors-HASS",
+        "requirements": ["icalendar", "requests", "arrow>=0.10.0"],
+        "dependencies": [],
+        "codeowners": ["@tybritten"]
+}
