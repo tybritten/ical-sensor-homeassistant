@@ -2,7 +2,7 @@
 
 in your configuration.yaml you'll need:
 
-```
+```yaml
 sensor:
 - platform: ical
   name: "My Calendar"
@@ -28,7 +28,7 @@ Put the keys file (sensor.py, __init__.py and manifest.json) in your home-assist
 ### Setup
 
 Add the following to your configuration:
-```
+```yaml
 custom_updater:
   track:
     - components
@@ -40,7 +40,7 @@ custom_updater:
 ### Installing
 
 To install it for the first time, use the [`custom_updater.install`](https://github.com/custom-components/custom_updater/wiki/Services#install-element-cardcomponentpython_script) service with appropriate service data:
-```
+```json
 {
   "element": "ical-sensor-bundle"
 }
