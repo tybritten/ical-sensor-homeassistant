@@ -60,7 +60,6 @@ def dateparser(calendar, date):
 
         if isinstance(event['DTSTART'].dt, dt.date):
             start = arrow.get(event['DTSTART'].dt)
-            start = start.replace(tzinfo='local')
         else:
             start = event['DTSTART'].dt
 
@@ -76,7 +75,6 @@ def dateparser(calendar, date):
         if 'DTEND' in event:
             if isinstance(event['DTEND'].dt, dt.date):
                 end = arrow.get(event['DTEND'].dt)
-                end = end.replace(tzinfo='local')
             else:
                 end = event['DTEND'].dt
             event_dict['end'] = end
