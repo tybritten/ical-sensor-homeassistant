@@ -80,6 +80,9 @@ def dateparser(calendar, date):
             else:
                 end = event['DTEND'].dt
             event_dict['end'] = end
+        if 'LOCATION' in event:
+            event_dict['location'] = event['LOCATION']
+
 
         events.append(event_dict)
 
@@ -138,7 +141,8 @@ class ICalSensor(Entity):
         self._event_attributes = {
             'name': None,
             'start': None,
-            'end': None
+            'end': None,
+            'location': None
         }
         # Get the data
         self.data_object.update()
@@ -148,6 +152,9 @@ class ICalSensor(Entity):
             val = event_list[self._eventno]
             start = val['start'].datetime
             self._event_attributes['start'] = start
+            end = val['end'].datetime
+            self._event_attributes['end'] = end
+            location = val.get('location', '')
             name = val.get('name', 'unknown')
             self._event_attributes['name'] = name
             self._state = "{} - {}".format(
