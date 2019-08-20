@@ -78,7 +78,11 @@ def dateparser(calendar, date):
             else:
                 end = event['DTEND'].dt
             event_dict['end'] = end
+        else:
+            # Use "start" as end if no end is set
+            event_dict['end'] = start
 
+        # Add location if present
         if 'LOCATION' in event:
             event_dict['location'] = event['LOCATION']
 
