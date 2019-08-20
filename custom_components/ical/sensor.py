@@ -60,7 +60,6 @@ def dateparser(calendar, date):
 
         if isinstance(event['DTSTART'].dt, dt.date):
             start = arrow.get(event['DTSTART'].dt)
-            start = start.replace(tzinfo='local')
         else:
             start = event['DTSTART'].dt
 
@@ -76,10 +75,12 @@ def dateparser(calendar, date):
         if 'DTEND' in event:
             if isinstance(event['DTEND'].dt, dt.date):
                 end = arrow.get(event['DTEND'].dt)
-                end = end.replace(tzinfo='local')
             else:
                 end = event['DTEND'].dt
             event_dict['end'] = end
+
+        if 'LOCATION' in event:
+            event_dict['location'] = event['LOCATION']
 
         events.append(event_dict)
 
@@ -137,8 +138,10 @@ class ICalSensor(Entity):
         # shouldn't change, so we should really prepopulate them.
         self._event_attributes = {
             'name': None,
+            'location': None,
             'start': None,
-            'end': None
+            'end': None,
+            'eta': None
         }
         # Get the data
         self.data_object.update()
@@ -148,8 +151,13 @@ class ICalSensor(Entity):
             val = event_list[self._eventno]
             start = val['start'].datetime
             self._event_attributes['start'] = start
+            end = val['end'].datetime
+            self._event_attributes['end'] = end
+            location = val.get('location', '')
+            self._event_attributes['locatiion'] = location
             name = val.get('name', 'unknown')
             self._event_attributes['name'] = name
+            self._event_attributes['eta'] = (start - dt.datetime.now(start.tzinfo) + timedelta(days=1)).days
             self._state = "{} - {}".format(
                 name,
                 start.strftime("%-d %B %Y %H:%M")
@@ -184,6 +192,7 @@ class ICalData(object):
 
             self.data = events
 
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
             _LOGGER.error("Error fetching data: %s", self._request)
+            _LOGGER.error(e)
             self.data = None

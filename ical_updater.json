@@ -1,7 +1,7 @@
 {
     "sensor.ical": {
-      "updated_at": "2019-04-25",
-      "version": "0.2",
+      "updated_at": "2019-08-20",
+      "version": "0.3",
       "local_location": "/custom_components/ical/__init__.py",
       "remote_location": "https://raw.githubusercontent.com/tybritten/ical-sensor-homeassistant/master/__init__.py",
       "visit_repo": "https://github.com/tybritten/ical-sensor-homeassistant/",
