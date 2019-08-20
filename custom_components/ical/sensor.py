@@ -158,7 +158,7 @@ class ICalSensor(Entity):
             end = val['end'].datetime
             self._event_attributes['end'] = end
             location = val.get('location', '')
-            self._event_attributes['locatiion'] = location
+            self._event_attributes['location'] = location
             name = val.get('name', 'unknown')
             self._event_attributes['name'] = name
             self._event_attributes['eta'] = (start - dt.datetime.now(start.tzinfo) + timedelta(days=1)).days
