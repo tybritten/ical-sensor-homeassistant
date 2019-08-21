@@ -190,7 +190,7 @@ class ICalData(object):
             with requests.Session() as sess:
                 response = sess.send(self._request, timeout=10)
 
-            cal = icalendar.Calendar.from_ical(response.text)
+            cal = icalendar.Calendar.from_ical(response.text.replace("\x00", ""))
             today = arrow.utcnow()
             events = dateparser(cal, today)
 
