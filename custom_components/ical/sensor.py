@@ -57,30 +57,29 @@ def dateparser(calendar, date):
     import arrow
     events = []
     for event in calendar.walk('VEVENT'):
-
         if isinstance(event['DTSTART'].dt, dt.date):
             start = arrow.get(event['DTSTART'].dt)
         else:
             start = event['DTSTART'].dt
 
+        # Add the end info if present.
+        if 'DTEND' not in event:
+            # Use "start" as end if no end is set
+            end = start
+        elif isinstance(event['DTEND'].dt, dt.date):
+            end = arrow.get(event['DTEND'].dt)
+        else:
+            end = event['DTEND'].dt
+
         # Skip this event if it's in the past
-        if start.date() < date.date():
+        if end.date() < date.date():
             continue
 
         event_dict = {
             'name': event['SUMMARY'],
-            'start': start
+            'start': start,
+            'end': end,
         }
-        # Add the end info if present.
-        if 'DTEND' in event:
-            if isinstance(event['DTEND'].dt, dt.date):
-                end = arrow.get(event['DTEND'].dt)
-            else:
-                end = event['DTEND'].dt
-            event_dict['end'] = end
-        else:
-            # Use "start" as end if no end is set
-            event_dict['end'] = start
 
         # Add location if present
         if 'LOCATION' in event:
