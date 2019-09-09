@@ -67,14 +67,6 @@ def dateparser(calendar, date):
         else:
             start = event['DTSTART'].dt
 
-        # Skip this event if it's in the past
-        if start.date() < date.date():
-            continue
-
-        event_dict = {
-            'name': event['SUMMARY'],
-            'start': start
-        }
         # Add the end info if present.
         if 'DTEND' in event:
             if isinstance(event['DTEND'].dt, dt.date):
@@ -84,10 +76,19 @@ def dateparser(calendar, date):
                     end = event['DTEND'].dt
             else:
                 end = event['DTEND'].dt
-            event_dict['end'] = end
         else:
             # Use "start" as end if no end is set
-            event_dict['end'] = start
+            end = start
+
+        # Skip this event if it's in the past
+        if end.date() < date.date():
+            continue
+
+        event_dict = {
+            'name': event['SUMMARY'],
+            'start': start,
+            'end': end
+        }
 
         # Add location if present
         if 'LOCATION' in event:
