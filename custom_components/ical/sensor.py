@@ -59,28 +59,36 @@ def dateparser(calendar, date):
     for event in calendar.walk('VEVENT'):
 
         if isinstance(event['DTSTART'].dt, dt.date):
-            start = arrow.get(event['DTSTART'].dt)
+            try:
+                start = arrow.get(event['DTSTART'].dt)
+            except arrow.parser.ParserError as e:
+                start = event['DTSTART'].dt
+
         else:
             start = event['DTSTART'].dt
 
+        # Add the end info if present.
+        if 'DTEND' in event:
+            if isinstance(event['DTEND'].dt, dt.date):
+                try:
+                    end = arrow.get(event['DTEND'].dt)
+                except arrow.parser.ParserError as e:
+                    end = event['DTEND'].dt
+            else:
+                end = event['DTEND'].dt
+        else:
+            # Use "start" as end if no end is set
+            end = start
+
         # Skip this event if it's in the past
-        if start.date() < date.date():
+        if end.date() < date.date():
             continue
 
         event_dict = {
             'name': event['SUMMARY'],
-            'start': start
+            'start': start,
+            'end': end
         }
-        # Add the end info if present.
-        if 'DTEND' in event:
-            if isinstance(event['DTEND'].dt, dt.date):
-                end = arrow.get(event['DTEND'].dt)
-            else:
-                end = event['DTEND'].dt
-            event_dict['end'] = end
-        else:
-            # Use "start" as end if no end is set
-            event_dict['end'] = start
 
         # Add location if present
         if 'LOCATION' in event:
@@ -188,9 +196,9 @@ class ICalData(object):
 
         try:
             with requests.Session() as sess:
-                response = sess.send(self._request, timeout=10)
+                response = sess.send(self._request, timeout=30)
 
-            cal = icalendar.Calendar.from_ical(response.text)
+            cal = icalendar.Calendar.from_ical(response.text.replace("\x00", ""))
             today = arrow.utcnow()
             events = dateparser(cal, today)
 
