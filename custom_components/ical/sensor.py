@@ -59,21 +59,14 @@ def dateparser(calendar, date):
     for event in calendar.walk('VEVENT'):
 
         if isinstance(event['DTSTART'].dt, dt.date):
-            try:
-                start = arrow.get(event['DTSTART'].dt)
-            except arrow.parser.ParserError as e:
-                start = event['DTSTART'].dt
-
+            start = arrow.get(str(event['DTSTART'].dt))
         else:
             start = event['DTSTART'].dt
 
         # Add the end info if present.
         if 'DTEND' in event:
             if isinstance(event['DTEND'].dt, dt.date):
-                try:
-                    end = arrow.get(event['DTEND'].dt)
-                except arrow.parser.ParserError as e:
-                    end = event['DTEND'].dt
+                    end = arrow.get(str(event['DTEND'].dt))
             else:
                 end = event['DTEND'].dt
         else:
