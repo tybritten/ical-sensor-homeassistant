@@ -3,8 +3,11 @@ Support for iCal-URLs
 
 """
 import datetime as dt
+import pytz
 import logging
 from datetime import timedelta
+from dateutil.rrule import rrulestr, rruleset
+
 
 import requests
 
@@ -14,7 +17,7 @@ from homeassistant.util import Throttle
 _LOGGER = logging.getLogger(__name__)
 REQUIREMENTS = ['icalendar', 'requests', 'arrow>=0.10.0']
 
-VERSION = "0.5"
+VERSION = "0.6"
 ICON = 'mdi:calendar'
 DEFAULT_NAME = 'iCal Sensor'
 DEFAULT_MAX_EVENTS = 5
@@ -56,38 +59,128 @@ def dateparser(calendar, date):
     """
     import arrow
     events = []
+
     for event in calendar.walk('VEVENT'):
+        # RRULEs turns out to be harder than initially thought.  
+        # This is maiiony due to pythons handling of TZ-naive and TZ-aware timestamps, and the inconsistensies 
+        # in the way RRULEs are implemented in the icalendar library.  
+        if 'RRULE' in event:
+            start_rules = rruleset()
+            end_rules = rruleset()
+            rrule = event['RRULE']
 
-        if isinstance(event['DTSTART'].dt, dt.date):
-            start = arrow.get(str(event['DTSTART'].dt))
-        else:
-            start = event['DTSTART'].dt
+            # Since we dont get both the start and the end in a single object, we need to generate two lists,
+            # One of all the DTSTARTs and another list of all the DTENDs
 
-        # Add the end info if present.
-        if 'DTEND' in event:
-            if isinstance(event['DTEND'].dt, dt.date):
-                    end = arrow.get(str(event['DTEND'].dt))
+            # Lets try to generate a list of all DTSTARTs.  
+            # We just do our best, and will catch the exeption when it fails and continue to the next event.
+            try:
+                start_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = event['DTSTART'].dt))
+            except Exception as e:
+                _LOGGER.error(e)
+                continue
+
+            # If DTEND is not defined, this will fail. 
+            # In that case, we will just use the DTSTARTs as DTENDs
+            try:
+                end_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = event['DTEND'].dt))
+            except Exception as e:
+                end_rules = start_rules
+
+            # EXDATEs are hard to parse.  They might be a list, or just a single object.
+            # They might contain TZ-data, they might not...
+            # We just do our best, and will catch the exeption when it fails and move on the the next event.
+            try:
+                if 'EXDATE' in event:
+                    if isinstance(event['EXDATE'], list):
+                        for exdate in event['EXDATE']:
+                            for edate in exdate.dts:
+                                start_rules.exdate(edate.dt)
+                                end_rules.exdate(edate.dt)
+                    else:
+                        for edate in event['EXDATE'].dts:
+                            start_rules.exdate(edate.dt)
+                            end_rules.exdate(edate.dt)
+            except Exception as e:
+                _LOGGER.error(e)
+                continue
+
+            # UNTIL will probably contain a TZ.  But if UNTIL is not defined, the RRULE seems to
+            # usually be TZ-naive.  So we defined "now" as either TZ-aware or naive based on the 
+            # presence of a UNTIL-tag.  Probably not perfect, but seems to work "most of the time"
+            if 'UNTIL' in rrule:
+                now = date.datetime
             else:
-                end = event['DTEND'].dt
+                now = dt.datetime.now()
+
+            # Lets get all RRULE-generated events which will start 7 days before today and end 30 days after today
+            # to ensure we are catching recurring events that might already have started.
+            try:
+                starts = start_rules.between(after=(now - timedelta(days=7)), before=(now + timedelta(days=30)))
+                ends = end_rules.between(after=(now - timedelta(days=7)), before=(now + timedelta(days=30)))
+            except Exception as e:
+                _LOGGER.info(e)
+                continue
+
+            # We might get RRULEs that does not fall within the limits above, lets just skip them
+            if len(starts) < 1:
+                continue
+
+            # It has to be a better way to do this...But at least it seems to work for now.
+            ends.reverse()
+            for start in starts:
+                # Sometimes we dont get the same number of starts and ends...
+                if len(ends) == 0:
+                    continue
+                end = arrow.get(str(ends.pop()))
+                if end.date() < date.date():
+                    continue
+                start = arrow.get(str(start))
+
+                # We should now have both a start and end arrow for the same event
+                event_dict = {
+                    'name': event['SUMMARY'],
+                    'start': start,
+                    'end': end
+                }
+
+                # Add location if present
+                if 'LOCATION' in event:
+                    event_dict['location'] = event['LOCATION']
+
+                events.append(event_dict)
+
         else:
-            # Use "start" as end if no end is set
-            end = start
+            if isinstance(event['DTSTART'].dt, dt.date):
+                start = arrow.get(str(event['DTSTART'].dt))
+            else:
+                start = event['DTSTART'].dt
 
-        # Skip this event if it's in the past
-        if end.date() < date.date():
-            continue
+            # Add the end info if present.
+            if 'DTEND' in event:
+                if isinstance(event['DTEND'].dt, dt.date):
+                    end = arrow.get(str(event['DTEND'].dt))
+                else:
+                    end = event['DTEND'].dt
+            else:
+                # Use "start" as end if no end is set
+                end = start
 
-        event_dict = {
-            'name': event['SUMMARY'],
-            'start': start,
-            'end': end
-        }
+            # Skip this event if it's in the past
+            if end.date() < date.date():
+                continue
 
-        # Add location if present
-        if 'LOCATION' in event:
-            event_dict['location'] = event['LOCATION']
+            event_dict = {
+                'name': event['SUMMARY'],
+                'start': start,
+                'end': end
+            }
 
-        events.append(event_dict)
+            # Add location if present
+            if 'LOCATION' in event:
+                event_dict['location'] = event['LOCATION']
+
+            events.append(event_dict)
 
     sorted_events = sorted(events, key=lambda k: k['start'])
     _LOGGER.debug(sorted_events)
