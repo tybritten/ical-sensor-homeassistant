@@ -77,7 +77,10 @@ def dateparser(calendar, date):
             try:
                 start_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = event['DTSTART'].dt))
             except Exception as e:
+                _LOGGER.error("Exception in start_rules.rrule:")
                 _LOGGER.error(e)
+                _LOGGER.error(" - " + event['RRULE'])
+                _LOGGER.error(" - " + event['DTSTART'])
                 continue
 
             # If DTEND is not defined, this will fail. 
@@ -85,6 +88,10 @@ def dateparser(calendar, date):
             try:
                 end_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = event['DTEND'].dt))
             except Exception as e:
+                _LOGGER.error("Exception in end_rules.rrule:")
+                _LOGGER.error(e)
+                _LOGGER.error(" - " + event['RRULE'])
+                _LOGGER.error(" - " + event['DTSTART'])
                 end_rules = start_rules
 
             # EXDATEs are hard to parse.  They might be a list, or just a single object.
@@ -102,7 +109,11 @@ def dateparser(calendar, date):
                             start_rules.exdate(edate.dt)
                             end_rules.exdate(edate.dt)
             except Exception as e:
+                _LOGGER.error("Exception in EXDATE:")
                 _LOGGER.error(e)
+                _LOGGER.error(" - " + event['RRULE'])
+                _LOGGER.error(" - " + event['DTSTART'])
+                _LOGGER.error(" - " + event['EXDATE'])
                 continue
 
             # UNTIL will probably contain a TZ.  But if UNTIL is not defined, the RRULE seems to
@@ -119,7 +130,10 @@ def dateparser(calendar, date):
                 starts = start_rules.between(after=(now - timedelta(days=7)), before=(now + timedelta(days=30)))
                 ends = end_rules.between(after=(now - timedelta(days=7)), before=(now + timedelta(days=30)))
             except Exception as e:
-                _LOGGER.info(e)
+                _LOGGER.error("Exception in start/ends:")
+                _LOGGER.error(e)
+                _LOGGER.error(" - " + event['RRULE'])
+                _LOGGER.error(" - " + event['DTSTART'])
                 continue
 
             # We might get RRULEs that does not fall within the limits above, lets just skip them
