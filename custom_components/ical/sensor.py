@@ -60,38 +60,76 @@ def dateparser(calendar, date):
     import arrow
     events = []
 
+
+    local_tz = dt.datetime.now().astimezone().tzinfo
+    # pytz does not lke "CEST". But since it handles DST fine, we just use CET 
+    if str(local_tz) == 'CEST':
+        local_tz = 'CET'
+        default_tz = pytz.timezone(str(local_tz))
+    _LOGGER.debug("Default timezone: " + str(default_tz))
+
+
     for event in calendar.walk('VEVENT'):
         # RRULEs turns out to be harder than initially thought.  
         # This is maiiony due to pythons handling of TZ-naive and TZ-aware timestamps, and the inconsistensies 
         # in the way RRULEs are implemented in the icalendar library.  
         if 'RRULE' in event:
-            start_rules = rruleset()
-            end_rules = rruleset()
             rrule = event['RRULE']
-
             # Since we dont get both the start and the end in a single object, we need to generate two lists,
             # One of all the DTSTARTs and another list of all the DTENDs
+            start_rules = rruleset()
+            end_rules = rruleset()
+
 
             # Lets try to generate a list of all DTSTARTs.  
-            # We just do our best, and will catch the exeption when it fails and continue to the next event.
+            dtstart = event['DTSTART'].dt
+            # Convert to datetime if needed
+            if not isinstance(dtstart, dt.datetime):
+                dtstart = dt.datetime(dtstart.year, dtstart.month, dtstart.day, 0, 0, 0)
+
+            # If the dtstart is tz-naive, we will add the local timezone 
+            # https://icalevents.com/2064-ical-local-or-floating-date-times/
+            if dtstart.tzinfo is None or dtstart.tzinfo.utcoffset(dtstart) is None:
+                _LOGGER.debug("TZ-Naive DTSTART:")
+                _LOGGER.debug(" - " + str(event['SUMMARY']))
+                _LOGGER.debug(" < " + str(dtstart))
+                # Try to add default TZ
+                dtstart = default_tz.localize(dtstart)
+                _LOGGER.debug(" > " + str(dtstart))
+
+
+            # And the same dance fot DTEND
+            # If we don't have a DTEND, just use DTSTART
+            if 'DTEND' not in event:
+                dtend = dtstart
+            else:
+                dtend = event['DTEND'].dt
+                if not isinstance(dtend, dt.datetime):
+                    dtend = dt.datetime(dtend.year, dtend.month, dtend.day, 0, 0, 0)
+                if dtend.tzinfo is None or dtend.tzinfo.utcoffset(dtend) is None:
+                    dtend = default_tz.localize(dtend) 
+
+            # So hopefully we now have a proper dtstart we can use to create the start-times according to the rrule
             try:
-                start_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = event['DTSTART'].dt))
+                start_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = dtstart))
             except Exception as e:
+                # If this fails, move on to the next event
                 _LOGGER.error("Exception in start_rules.rrule:")
                 _LOGGER.error(e)
+                _LOGGER.error(" - " + str(event['SUMMARY']))
+                _LOGGER.error(" - " + str(dtstart))
                 _LOGGER.error(" - " + str(event['RRULE']))
-                _LOGGER.error(" - " + str(event['DTSTART']))
                 continue
 
-            # If DTEND is not defined, this will fail. 
-            # In that case, we will just use the DTSTARTs as DTENDs
             try:
-                end_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = event['DTEND'].dt))
+                end_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = dtend))
             except Exception as e:
+                # If this fails, just use the start-rules
                 _LOGGER.error("Exception in end_rules.rrule:")
                 _LOGGER.error(e)
+                _LOGGER.error(" - " + str(event['SUMMARY']))
+                _LOGGER.error(" - " + str(dtend))
                 _LOGGER.error(" - " + str(event['RRULE']))
-                _LOGGER.error(" - " + str(event['DTSTART']))
                 end_rules = start_rules
 
             # EXDATEs are hard to parse.  They might be a list, or just a single object.
@@ -111,8 +149,9 @@ def dateparser(calendar, date):
             except Exception as e:
                 _LOGGER.error("Exception in EXDATE:")
                 _LOGGER.error(e)
+                _LOGGER.error(" - " + str(event['SUMMARY']))
                 _LOGGER.error(" - " + str(event['RRULE']))
-                _LOGGER.error(" - " + str(event['DTSTART']))
+                _LOGGER.error(" - " + str(dtstart))
                 _LOGGER.error(" - " + str(event['EXDATE']))
                 continue
 
@@ -130,10 +169,11 @@ def dateparser(calendar, date):
                 starts = start_rules.between(after=(now - timedelta(days=7)), before=(now + timedelta(days=30)))
                 ends = end_rules.between(after=(now - timedelta(days=7)), before=(now + timedelta(days=30)))
             except Exception as e:
-                _LOGGER.error("Exception in start/ends:")
+                _LOGGER.error("Exception in starts/ends:")
                 _LOGGER.error(e)
+                _LOGGER.error(" - " + str(event['SUMMARY']))
                 _LOGGER.error(" - " + str(event['RRULE']))
-                _LOGGER.error(" - " + str(event['DTSTART']))
+                _LOGGER.error(" - " + str(dtstart))
                 continue
 
             # We might get RRULEs that does not fall within the limits above, lets just skip them
@@ -162,23 +202,42 @@ def dateparser(calendar, date):
                 if 'LOCATION' in event:
                     event_dict['location'] = event['LOCATION']
 
-                events.append(event_dict)
+                # events.append(event_dict)
 
         else:
-            if isinstance(event['DTSTART'].dt, dt.date):
-                start = arrow.get(str(event['DTSTART'].dt))
+            # Let's use the same magic as for rrules to get this (as) right (as possible)
+            dtstart = event['DTSTART'].dt
+            if not isinstance(dtstart, dt.datetime):
+                dtstart = dt.datetime(dtstart.year, dtstart.month, dtstart.day, 0, 0, 0)
+
+            if dtstart.tzinfo is None or dtstart.tzinfo.utcoffset(dtstart) is None:
+                dtstart = default_tz.localize(dtstart)
+            start = arrow.get(dtstart)
+
+            if 'DTEND' not in event:
+                dtend = dtstart
             else:
-                start = event['DTSTART'].dt
+                dtend = event['DTEND'].dt
+                if not isinstance(dtend, dt.datetime):
+                    dtend = dt.datetime(dtend.year, dtend.month, dtend.day, 0, 0, 0)
+                if dtend.tzinfo is None or dtend.tzinfo.utcoffset(dtend) is None:
+                    dtend = default_tz.localize(dtend)
+            end = arrow.get(dtend)
+
+            # if isinstance(event['DTSTART'].dt, dt.date):
+            #     start = arrow.get(str(event['DTSTART'].dt))
+            # else:
+            #     start = event['DTSTART'].dt
 
             # Add the end info if present.
-            if 'DTEND' in event:
-                if isinstance(event['DTEND'].dt, dt.date):
-                    end = arrow.get(str(event['DTEND'].dt))
-                else:
-                    end = event['DTEND'].dt
-            else:
-                # Use "start" as end if no end is set
-                end = start
+            # if 'DTEND' in event:
+            #     if isinstance(event['DTEND'].dt, dt.date):
+            #         end = arrow.get(str(event['DTEND'].dt))
+            #     else:
+            #         end = event['DTEND'].dt
+            # else:
+            #    # Use "start" as end if no end is set
+            #     end = start
 
             # Skip this event if it's in the past
             if end.date() < date.date():
@@ -194,10 +253,9 @@ def dateparser(calendar, date):
             if 'LOCATION' in event:
                 event_dict['location'] = event['LOCATION']
 
-            events.append(event_dict)
+        events.append(event_dict)
 
     sorted_events = sorted(events, key=lambda k: k['start'])
-    _LOGGER.debug(sorted_events)
     return sorted_events
 
 
