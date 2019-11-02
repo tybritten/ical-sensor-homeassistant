@@ -61,19 +61,22 @@ def dateparser(calendar, date):
     events = []
 
 
+    # Ensure "now" is TZ-aware
+    now = date.datetime
     local_tz = dt.datetime.now().astimezone().tzinfo
     # pytz does not lke "CEST". But since it handles DST fine, we just use CET 
     if str(local_tz) == 'CEST':
         local_tz = 'CET'
-        default_tz = pytz.timezone(str(local_tz))
+    default_tz = pytz.timezone(str(local_tz))
+    _LOGGER.debug("NOW: " + str(now))
     _LOGGER.debug("Default timezone: " + str(default_tz))
-
 
     for event in calendar.walk('VEVENT'):
         # RRULEs turns out to be harder than initially thought.  
         # This is maiiony due to pythons handling of TZ-naive and TZ-aware timestamps, and the inconsistensies 
         # in the way RRULEs are implemented in the icalendar library.  
         if 'RRULE' in event:
+            _LOGGER.debug("RRULE in event: " + str(event['SUMMARY']))
             rrule = event['RRULE']
             # Since we dont get both the start and the end in a single object, we need to generate two lists,
             # One of all the DTSTARTs and another list of all the DTENDs
@@ -91,7 +94,6 @@ def dateparser(calendar, date):
             # https://icalevents.com/2064-ical-local-or-floating-date-times/
             if dtstart.tzinfo is None or dtstart.tzinfo.utcoffset(dtstart) is None:
                 _LOGGER.debug("TZ-Naive DTSTART:")
-                _LOGGER.debug(" - " + str(event['SUMMARY']))
                 _LOGGER.debug(" < " + str(dtstart))
                 # Try to add default TZ
                 dtstart = default_tz.localize(dtstart)
@@ -155,14 +157,6 @@ def dateparser(calendar, date):
                 _LOGGER.error(" - " + str(event['EXDATE']))
                 continue
 
-            # UNTIL will probably contain a TZ.  But if UNTIL is not defined, the RRULE seems to
-            # usually be TZ-naive.  So we defined "now" as either TZ-aware or naive based on the 
-            # presence of a UNTIL-tag.  Probably not perfect, but seems to work "most of the time"
-            if 'UNTIL' in rrule:
-                now = date.datetime
-            else:
-                now = dt.datetime.now()
-
             # Lets get all RRULE-generated events which will start 7 days before today and end 30 days after today
             # to ensure we are catching recurring events that might already have started.
             try:
@@ -174,22 +168,27 @@ def dateparser(calendar, date):
                 _LOGGER.error(" - " + str(event['SUMMARY']))
                 _LOGGER.error(" - " + str(event['RRULE']))
                 _LOGGER.error(" - " + str(dtstart))
+                _LOGGER.error(" - " + str(dtend))
                 continue
 
             # We might get RRULEs that does not fall within the limits above, lets just skip them
             if len(starts) < 1:
+                _LOGGER.debug("Event does not happen within our limits")
                 continue
 
             # It has to be a better way to do this...But at least it seems to work for now.
             ends.reverse()
-            for start in starts:
+            for starte in starts:
                 # Sometimes we dont get the same number of starts and ends...
                 if len(ends) == 0:
                     continue
                 end = arrow.get(str(ends.pop()))
                 if end.date() < date.date():
+                    _LOGGER.debug("This event has already ended")
                     continue
-                start = arrow.get(str(start))
+                start = arrow.get(str(starte))
+                _LOGGER.debug("Event " + str(event['SUMMARY']) + " - possible start: " + str(start))
+
 
                 # We should now have both a start and end arrow for the same event
                 event_dict = {
@@ -202,7 +201,11 @@ def dateparser(calendar, date):
                 if 'LOCATION' in event:
                     event_dict['location'] = event['LOCATION']
 
-                # events.append(event_dict)
+                _LOGGER.debug("Event to add:")
+                _LOGGER.debug(event_dict)
+                events.append(event_dict)
+
+            _LOGGER.debug("Done parsing RRULE")
 
         else:
             # Let's use the same magic as for rrules to get this (as) right (as possible)
@@ -253,7 +256,7 @@ def dateparser(calendar, date):
             if 'LOCATION' in event:
                 event_dict['location'] = event['LOCATION']
 
-        events.append(event_dict)
+            events.append(event_dict)
 
     sorted_events = sorted(events, key=lambda k: k['start'])
     return sorted_events
@@ -319,6 +322,9 @@ class ICalSensor(Entity):
         event_list = self.data_object.data
         if event_list and (self._eventno < len(event_list)):
             val = event_list[self._eventno]
+            _LOGGER.debug("Adding event " + val.get('name', 'unknown') + " to calendar")
+            _LOGGER.debug("- Start:")
+            _LOGGER.debug(val['start'])
             start = val['start'].datetime
             self._event_attributes['start'] = start
             end = val['end'].datetime
