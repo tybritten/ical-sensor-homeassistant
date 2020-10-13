@@ -52,6 +52,41 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     add_entities(sensors)
 
 
+def datefixer(indate, timezone = 'UTC'):
+    """
+    Takes something that looks kind of like a date
+    and returns a timezone-aware datetime-object back
+    """
+
+    _LOGGER.debug("Fixing date:")
+    _LOGGER.debug(indate)
+    _LOGGER.debug("In TZ:")
+    _LOGGER.debug(timezone)
+
+    # Indate can be a single entry or a list...
+    if isinstance(indate, list):
+        indate = indate[0]
+
+    # Indate can be a date without time...
+    if not isinstance(indate, dt.datetime):
+        try:
+            indate = dt.datetime(indate.year, indate.month, indate.day, 0, 0, 0)
+        except:
+            _LOGGER.error("Unable to parse indate")
+
+    # Indate can be TZ naive
+    if indate.tzinfo is None or indate.tzinfo.utcoffset(indate) is None:
+        _LOGGER.debug("TZ-Naive indate:")
+        _LOGGER.debug(" < " + str(indate))
+        tz = pytz.timezone(str(timezone))
+        _LOGGER.debug("Add TZ:")
+        _LOGGER.debug(tz)
+        indate = tz.localize(indate)
+        _LOGGER.debug(" > " + str(indate))
+    return indate
+
+
+
 def dateparser(calendar, date):
     """
     Takes a calendar and a date, and returns a sorted list
@@ -63,11 +98,13 @@ def dateparser(calendar, date):
 
     # Ensure "now" is TZ-aware
     now = date.datetime
-    local_tz = dt.datetime.now().astimezone().tzinfo
+    dt_local_tz = dt.datetime.now().astimezone().tzinfo
     # pytz does not lke "CEST". But since it handles DST fine, we just use CET 
+    local_tz = dt_local_tz
     if str(local_tz) == 'CEST':
         local_tz = 'CET'
     default_tz = pytz.timezone(str(local_tz))
+    utc_tz = pytz.utc
     _LOGGER.debug("NOW: " + str(now))
     _LOGGER.debug("Default timezone: " + str(default_tz))
 
@@ -83,33 +120,41 @@ def dateparser(calendar, date):
             start_rules = rruleset()
             end_rules = rruleset()
 
+            if 'UNTIL' in rrule:
+                _LOGGER.debug("UNTIL in rrule")
+                until = datefixer(rrule['UNTIL'], 'UTC')
+                rrule['UNTIL'] = [until]
+            else:
+                _LOGGER.debug("No UNTIL in rrule")
 
             # Lets try to generate a list of all DTSTARTs.  
-            dtstart = event['DTSTART'].dt
-            # Convert to datetime if needed
-            if not isinstance(dtstart, dt.datetime):
-                dtstart = dt.datetime(dtstart.year, dtstart.month, dtstart.day, 0, 0, 0)
-
-            # If the dtstart is tz-naive, we will add the local timezone 
-            # https://icalevents.com/2064-ical-local-or-floating-date-times/
-            if dtstart.tzinfo is None or dtstart.tzinfo.utcoffset(dtstart) is None:
-                _LOGGER.debug("TZ-Naive DTSTART:")
-                _LOGGER.debug(" < " + str(dtstart))
-                # Try to add default TZ
-                dtstart = default_tz.localize(dtstart)
-                _LOGGER.debug(" > " + str(dtstart))
-
+            _LOGGER.debug("DTSTART in rrule")
+            dtstart = datefixer(event['DTSTART'].dt, local_tz)
+#            # Convert to datetime if needed
+#            if not isinstance(dtstart, dt.datetime):
+#                dtstart = dt.datetime(dtstart.year, dtstart.month, dtstart.day, 0, 0, 0)
+#
+#            # If the dtstart is tz-naive, we will add the local timezone 
+#            # https://icalevents.com/2064-ical-local-or-floating-date-times/
+#            if dtstart.tzinfo is None or dtstart.tzinfo.utcoffset(dtstart) is None:
+#                _LOGGER.debug("TZ-Naive DTSTART:")
+#                _LOGGER.debug(" < " + str(dtstart))
+#                # Try to add default TZ
+#                dtstart = default_tz.localize(dtstart)
+#                _LOGGER.debug(" > " + str(dtstart))
+#
 
             # And the same dance fot DTEND
             # If we don't have a DTEND, just use DTSTART
             if 'DTEND' not in event:
                 dtend = dtstart
             else:
-                dtend = event['DTEND'].dt
-                if not isinstance(dtend, dt.datetime):
-                    dtend = dt.datetime(dtend.year, dtend.month, dtend.day, 0, 0, 0)
-                if dtend.tzinfo is None or dtend.tzinfo.utcoffset(dtend) is None:
-                    dtend = default_tz.localize(dtend) 
+                _LOGGER.debug("DTEND in rrule")
+                dtend = datefixer(event['DTEND'].dt, local_tz)
+#                if not isinstance(dtend, dt.datetime):
+#                    dtend = dt.datetime(dtend.year, dtend.month, dtend.day, 0, 0, 0)
+#                if dtend.tzinfo is None or dtend.tzinfo.utcoffset(dtend) is None:
+#                    dtend = default_tz.localize(dtend) 
 
             # So hopefully we now have a proper dtstart we can use to create the start-times according to the rrule
             try:
@@ -193,8 +238,8 @@ def dateparser(calendar, date):
                 # We should now have both a start and end arrow for the same event
                 event_dict = {
                     'name': event['SUMMARY'],
-                    'start': start,
-                    'end': end
+                    'start': start.astimezone(dt_local_tz),
+                    'end': end.astimezone(dt_local_tz)
                 }
 
                 # Add location if present
@@ -209,22 +254,26 @@ def dateparser(calendar, date):
 
         else:
             # Let's use the same magic as for rrules to get this (as) right (as possible)
-            dtstart = event['DTSTART'].dt
-            if not isinstance(dtstart, dt.datetime):
-                dtstart = dt.datetime(dtstart.year, dtstart.month, dtstart.day, 0, 0, 0)
+            _LOGGER.debug("DTSTART in rrule")
+            dtstart = datefixer(event['DTSTART'].dt, local_tz)
+            # dtstart = event['DTSTART'].dt
+            # if not isinstance(dtstart, dt.datetime):
+            #    dtstart = dt.datetime(dtstart.year, dtstart.month, dtstart.day, 0, 0, 0)
 
-            if dtstart.tzinfo is None or dtstart.tzinfo.utcoffset(dtstart) is None:
-                dtstart = default_tz.localize(dtstart)
+            # if dtstart.tzinfo is None or dtstart.tzinfo.utcoffset(dtstart) is None:
+            #     dtstart = default_tz.localize(dtstart)
             start = arrow.get(dtstart)
 
             if 'DTEND' not in event:
                 dtend = dtstart
             else:
-                dtend = event['DTEND'].dt
-                if not isinstance(dtend, dt.datetime):
-                    dtend = dt.datetime(dtend.year, dtend.month, dtend.day, 0, 0, 0)
-                if dtend.tzinfo is None or dtend.tzinfo.utcoffset(dtend) is None:
-                    dtend = default_tz.localize(dtend)
+                _LOGGER.debug("DTEND in rrule")
+                dtend = datefixer(event['DTEND'].dt, local_tz)
+                # dtend = event['DTEND'].dt
+                # if not isinstance(dtend, dt.datetime):
+                #     dtend = dt.datetime(dtend.year, dtend.month, dtend.day, 0, 0, 0)
+                # if dtend.tzinfo is None or dtend.tzinfo.utcoffset(dtend) is None:
+                #    dtend = default_tz.localize(dtend)
             end = arrow.get(dtend)
 
             # if isinstance(event['DTSTART'].dt, dt.date):
@@ -248,8 +297,8 @@ def dateparser(calendar, date):
 
             event_dict = {
                 'name': event['SUMMARY'],
-                'start': start,
-                'end': end
+                'start': start.astimezone(dt_local_tz),
+                'end': end.astimezone(dt_local_tz)
             }
 
             # Add location if present
@@ -325,9 +374,9 @@ class ICalSensor(Entity):
             _LOGGER.debug("Adding event " + val.get('name', 'unknown') + " to calendar")
             _LOGGER.debug("- Start:")
             _LOGGER.debug(val['start'])
-            start = val['start'].datetime
+            start = val['start']
             self._event_attributes['start'] = start
-            end = val['end'].datetime
+            end = val['end']
             self._event_attributes['end'] = end
             location = val.get('location', '')
             self._event_attributes['location'] = location
