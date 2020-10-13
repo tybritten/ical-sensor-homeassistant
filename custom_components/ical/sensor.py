@@ -231,6 +231,10 @@ def dateparser(calendar, date):
                 if end.date() < date.date():
                     _LOGGER.debug("This event has already ended")
                     continue
+                _LOGGER.debug("Event " + str(event['SUMMARY']) + " now: " + str(date.date()) +  " - end: " + str(end.date) + " H: " + str(end.hour) + " M: " + str(end.minute) + " S: " + str(end.second))
+                if end.date() == date.date() and end.hour == 0 and end.minute == 0 and end.second == 0:
+                    _LOGGER.debug("This event has already ended")
+                    continue
                 start = arrow.get(str(starte))
                 _LOGGER.debug("Event " + str(event['SUMMARY']) + " - possible start: " + str(start))
 
@@ -293,6 +297,11 @@ def dateparser(calendar, date):
 
             # Skip this event if it's in the past
             if end.date() < date.date():
+                _LOGGER.debug("This event has already ended")
+                continue
+            _LOGGER.debug("Event " + str(event['SUMMARY']) + " now: " + str(date.date()) +  " - end: " + str(end.date) + " H: " + str(end.hour) + " M: " + str(end.minute) + " S: " + str(end.second))
+            if end.date() == date.date() and end.hour == 0 and end.minute == 0 and end.second == 0:
+                _LOGGER.debug("This event has already ended")
                 continue
 
             event_dict = {
