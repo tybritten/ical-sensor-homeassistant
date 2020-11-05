@@ -1,52 +1,29 @@
 # iCal Sensor Support for Home Assistant
 
-in your configuration.yaml you'll need:
+This integration will create sensors for the next few future calendar events, called:
 
-```yaml
-sensor:
-- platform: ical
-  name: "My Calendar"
-  url: "http://url.to/ical"
-```
+* sensor.ical_my_calendar_event_0
+* sensor.ical_my_calendar_event_1
+* sensor.ical_my_calendar_event_2
+(...)
 
-It will create sensors for the next few future calendar events, called:
+And it will create a calendar-entry that can be used in the calendar cards etc.
 
-* sensor.my_calendar_event_0
-* sensor.my_calendar_event_1
-* sensor.my_calendar_event_2
+* calendar.ical_my_calendar
 
-etc
 
-## Manual Installation
+## Installation
 
-Put the keys file (sensor.py, __init__.py and manifest.json) in your home-assistant config directory under custom_components/ical.
+Copy all files from the "custom_components/ical" directory to your home-assistant config directory under custom_components/ical.
 
-## Custom Updater
-
-[ical_updater.json](ical_updater.json)  provide the details Custom Updater needs. See [Custom Updater Installation](https://github.com/custom-components/custom_updater/wiki/Installation) to install it.
 
 ### Setup
 
-Add the following to your configuration:
-```yaml
-custom_updater:
-  track:
-    - components
-  component_urls:
-    - https://raw.githubusercontent.com/tybritten/ical-sensor-homeassistant/master/ical_updater.json
+The integration is set up using the GUI.
 
-```
-
-### Installing
-
-To install it for the first time, use the [`custom_updater.install`](https://github.com/custom-components/custom_updater/wiki/Services#install-element-cardcomponentpython_script) service with appropriate service data:
-```json
-{
-  "element": "ical-sensor-bundle"
-}
-```
-
-### Updating
-
-Once the iCal component is installed it can easily be updated using the [Tracker card](https://github.com/custom-cards/tracker-card). If you're not using the Tracker card then you can use the [`custom_updater.update_all`](https://github.com/custom-components/custom_updater/wiki/Services#update-all) service.
+* Go to Configuration -> Integrations and click on the "+"-button.
+* Search for "ical"
+* Enter a name for the calendar, and the URL
+* By default it will set up 5 sensors for the 5 nex upcoming events (sensor.ical_<calendar_name>_event_1 ~ 5).  You can adjust this to add more or fewer sensors
+* The integration will only consider events with a start time 365 days into the future by default. This can also be adjusted when adding a new calendar
 
