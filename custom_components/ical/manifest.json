@@ -1,8 +1,16 @@
 {
-        "domain": "ical",
-        "name": "iCal Sensor",
-        "documentation": "https://github.com/tybritten/ical-sensor-homeassistant",
-        "requirements": ["icalendar", "requests", "arrow>=0.10.0"],
-        "dependencies": [],
-        "codeowners": ["@tybritten"]
+  "domain": "ical",
+  "name": "ical",
+  "config_flow": true,
+  "documentation": "https://www.home-assistant.io/integrations/ical",
+  "requirements": [
+    "icalendar==4.0.7"
+  ],
+  "ssdp": [],
+  "zeroconf": [],
+  "homekit": {},
+  "dependencies": [],
+  "codeowners": [
+    "@Olen"
+  ]
 }
