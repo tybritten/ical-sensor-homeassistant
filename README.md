@@ -27,3 +27,7 @@ The integration is set up using the GUI.
 * By default it will set up 5 sensors for the 5 nex upcoming events (sensor.ical_<calendar_name>_event_1 ~ 5).  You can adjust this to add more or fewer sensors
 * The integration will only consider events with a start time 365 days into the future by default. This can also be adjusted when adding a new calendar
 
+### Breaking change
+
+If you have used this integration previously with yaml-config, you need to set up the calendars agan using the GUI and adjust any scripts/automations etc. to use the new entity_ids that are generated automatically.
+You can then safely remove any ical sensor and integration config from your yaml files.
