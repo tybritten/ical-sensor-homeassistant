@@ -7,7 +7,10 @@ sensor:
 - platform: ical
   name: "My Calendar"
   url: "http://url.to/ical"
+  #----OR----
+  url: "/config/www/mycal.ics"
 ```
+url can be the path to a local file or a web url. The url must be http/https, it should not be `ical://`
 
 It will create sensors for the next few future calendar events, called:
 

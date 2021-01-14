@@ -35,16 +35,11 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     name = config.get("name", DEFAULT_NAME)
     maxevents = config.get("maxevents", DEFAULT_MAX_EVENTS)
 
-    if url is None and file is None:
-        _LOGGER.error('Missing required variable: "url or file"')
+    if url is None:
+        _LOGGER.error('Missing required variable: "url"')
         return False
-    elif url and file:
-        _LOGGER.error("Can only configure url or file, not both")
-        return False
-    elif url is None:
-        data_object = ICalData(file)
-    else:
-        data_object = ICalData(url)
+
+    data_object = ICalData(url)
 
     data_object.update()
 
