@@ -15,13 +15,13 @@ from homeassistant.helpers.entity import Entity
 from homeassistant.util import Throttle
 
 _LOGGER = logging.getLogger(__name__)
-REQUIREMENTS = ['icalendar', 'requests', 'arrow>=0.10.0']
+REQUIREMENTS = ["icalendar", "requests", "arrow>=0.10.0"]
 
 VERSION = "0.6"
-ICON = 'mdi:calendar'
-DEFAULT_NAME = 'iCal Sensor'
+ICON = "mdi:calendar"
+DEFAULT_NAME = "iCal Sensor"
 DEFAULT_MAX_EVENTS = 5
-PLATFORM = 'ical'
+PLATFORM = "ical"
 SCAN_INTERVAL = timedelta(minutes=1)
 
 # Return cached results if last scan was less then this time ago.
@@ -30,19 +30,26 @@ MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=120)
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
     """Setup the iCal Sensor."""
-    url = config.get('url')
-    name = config.get('name', DEFAULT_NAME)
-    maxevents = config.get('maxevents', DEFAULT_MAX_EVENTS)
+    file = config.get("file")
+    url = config.get("url")
+    name = config.get("name", DEFAULT_NAME)
+    maxevents = config.get("maxevents", DEFAULT_MAX_EVENTS)
 
-    if url is None:
-        _LOGGER.error('Missing required variable: "url"')
+    if url is None and file is None:
+        _LOGGER.error('Missing required variable: "url or file"')
         return False
+    elif url and file:
+        _LOGGER.error("Can only configure url or file, not both")
+        return False
+    elif url is None:
+        data_object = ICalData(file)
+    else:
+        data_object = ICalData(url)
 
-    data_object = ICalData(url)
     data_object.update()
 
     if data_object.data is None:
-        _LOGGER.error('Unable to fetch iCal')
+        _LOGGER.error("Unable to fetch iCal")
         return False
 
     sensors = []
@@ -58,32 +65,39 @@ def dateparser(calendar, date):
     of events on or after that date.
     """
     import arrow
+
     events = []
 
-    for event in calendar.walk('VEVENT'):
-        # RRULEs turns out to be harder than initially thought.  
-        # This is maiiony due to pythons handling of TZ-naive and TZ-aware timestamps, and the inconsistensies 
-        # in the way RRULEs are implemented in the icalendar library.  
-        if 'RRULE' in event:
+    for event in calendar.walk("VEVENT"):
+        # RRULEs turns out to be harder than initially thought.
+        # This is maiiony due to pythons handling of TZ-naive and TZ-aware timestamps, and the inconsistensies
+        # in the way RRULEs are implemented in the icalendar library.
+        if "RRULE" in event:
             start_rules = rruleset()
             end_rules = rruleset()
-            rrule = event['RRULE']
+            rrule = event["RRULE"]
 
             # Since we dont get both the start and the end in a single object, we need to generate two lists,
             # One of all the DTSTARTs and another list of all the DTENDs
 
-            # Lets try to generate a list of all DTSTARTs.  
+            # Lets try to generate a list of all DTSTARTs.
             # We just do our best, and will catch the exeption when it fails and continue to the next event.
             try:
-                start_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = event['DTSTART'].dt))
+                start_rules.rrule(
+                    rrulestr(
+                        rrule.to_ical().decode("utf-8"), dtstart=event["DTSTART"].dt
+                    )
+                )
             except Exception as e:
                 _LOGGER.error(e)
                 continue
 
-            # If DTEND is not defined, this will fail. 
+            # If DTEND is not defined, this will fail.
             # In that case, we will just use the DTSTARTs as DTENDs
             try:
-                end_rules.rrule(rrulestr(rrule.to_ical().decode("utf-8"), dtstart = event['DTEND'].dt))
+                end_rules.rrule(
+                    rrulestr(rrule.to_ical().decode("utf-8"), dtstart=event["DTEND"].dt)
+                )
             except Exception as e:
                 end_rules = start_rules
 
@@ -91,14 +105,14 @@ def dateparser(calendar, date):
             # They might contain TZ-data, they might not...
             # We just do our best, and will catch the exeption when it fails and move on the the next event.
             try:
-                if 'EXDATE' in event:
-                    if isinstance(event['EXDATE'], list):
-                        for exdate in event['EXDATE']:
+                if "EXDATE" in event:
+                    if isinstance(event["EXDATE"], list):
+                        for exdate in event["EXDATE"]:
                             for edate in exdate.dts:
                                 start_rules.exdate(edate.dt)
                                 end_rules.exdate(edate.dt)
                     else:
-                        for edate in event['EXDATE'].dts:
+                        for edate in event["EXDATE"].dts:
                             start_rules.exdate(edate.dt)
                             end_rules.exdate(edate.dt)
             except Exception as e:
@@ -106,9 +120,9 @@ def dateparser(calendar, date):
                 continue
 
             # UNTIL will probably contain a TZ.  But if UNTIL is not defined, the RRULE seems to
-            # usually be TZ-naive.  So we defined "now" as either TZ-aware or naive based on the 
+            # usually be TZ-naive.  So we defined "now" as either TZ-aware or naive based on the
             # presence of a UNTIL-tag.  Probably not perfect, but seems to work "most of the time"
-            if 'UNTIL' in rrule:
+            if "UNTIL" in rrule:
                 now = date.datetime
             else:
                 now = dt.datetime.now()
@@ -116,8 +130,12 @@ def dateparser(calendar, date):
             # Lets get all RRULE-generated events which will start 7 days before today and end 30 days after today
             # to ensure we are catching recurring events that might already have started.
             try:
-                starts = start_rules.between(after=(now - timedelta(days=7)), before=(now + timedelta(days=30)))
-                ends = end_rules.between(after=(now - timedelta(days=7)), before=(now + timedelta(days=30)))
+                starts = start_rules.between(
+                    after=(now - timedelta(days=7)), before=(now + timedelta(days=30))
+                )
+                ends = end_rules.between(
+                    after=(now - timedelta(days=7)), before=(now + timedelta(days=30))
+                )
             except Exception as e:
                 _LOGGER.info(e)
                 continue
@@ -138,30 +156,26 @@ def dateparser(calendar, date):
                 start = arrow.get(str(start))
 
                 # We should now have both a start and end arrow for the same event
-                event_dict = {
-                    'name': event['SUMMARY'],
-                    'start': start,
-                    'end': end
-                }
+                event_dict = {"name": event["SUMMARY"], "start": start, "end": end}
 
                 # Add location if present
-                if 'LOCATION' in event:
-                    event_dict['location'] = event['LOCATION']
+                if "LOCATION" in event:
+                    event_dict["location"] = event["LOCATION"]
 
                 events.append(event_dict)
 
         else:
-            if isinstance(event['DTSTART'].dt, dt.date):
-                start = arrow.get(str(event['DTSTART'].dt))
+            if isinstance(event["DTSTART"].dt, dt.date):
+                start = arrow.get(str(event["DTSTART"].dt))
             else:
-                start = event['DTSTART'].dt
+                start = event["DTSTART"].dt
 
             # Add the end info if present.
-            if 'DTEND' in event:
-                if isinstance(event['DTEND'].dt, dt.date):
-                    end = arrow.get(str(event['DTEND'].dt))
+            if "DTEND" in event:
+                if isinstance(event["DTEND"].dt, dt.date):
+                    end = arrow.get(str(event["DTEND"].dt))
                 else:
-                    end = event['DTEND'].dt
+                    end = event["DTEND"].dt
             else:
                 # Use "start" as end if no end is set
                 end = start
@@ -170,19 +184,15 @@ def dateparser(calendar, date):
             if end.date() < date.date():
                 continue
 
-            event_dict = {
-                'name': event['SUMMARY'],
-                'start': start,
-                'end': end
-            }
+            event_dict = {"name": event["SUMMARY"], "start": start, "end": end}
 
             # Add location if present
-            if 'LOCATION' in event:
-                event_dict['location'] = event['LOCATION']
+            if "LOCATION" in event:
+                event_dict["location"] = event["LOCATION"]
 
             events.append(event_dict)
 
-    sorted_events = sorted(events, key=lambda k: k['start'])
+    sorted_events = sorted(events, key=lambda k: k["start"])
     _LOGGER.debug(sorted_events)
     return sorted_events
 
@@ -195,6 +205,7 @@ class ICalSensor(Entity):
     May have a name like 'sensor.mycalander_event_0' for the first
     upcoming event.
     """
+
     def __init__(self, hass, data_object, sensor_name, eventnumber):
         """
         Initialize the sensor.
@@ -204,7 +215,7 @@ class ICalSensor(Entity):
         self._eventno = eventnumber
         self._hass = hass
         self.data_object = data_object
-        self._name = sensor_name + '_event_' + str(eventnumber)
+        self._name = sensor_name + "_event_" + str(eventnumber)
         self._event_attributes = {}
         self.update()
 
@@ -235,11 +246,11 @@ class ICalSensor(Entity):
         # I guess the number and details of attributes probably
         # shouldn't change, so we should really prepopulate them.
         self._event_attributes = {
-            'name': None,
-            'location': None,
-            'start': None,
-            'end': None,
-            'eta': None
+            "name": None,
+            "location": None,
+            "start": None,
+            "end": None,
+            "eta": None,
         }
         # Get the data
         self.data_object.update()
@@ -247,19 +258,18 @@ class ICalSensor(Entity):
         event_list = self.data_object.data
         if event_list and (self._eventno < len(event_list)):
             val = event_list[self._eventno]
-            start = val['start'].datetime
-            self._event_attributes['start'] = start
-            end = val['end'].datetime
-            self._event_attributes['end'] = end
-            location = val.get('location', '')
-            self._event_attributes['location'] = location
-            name = val.get('name', 'unknown')
-            self._event_attributes['name'] = name
-            self._event_attributes['eta'] = (start - dt.datetime.now(start.tzinfo) + timedelta(days=1)).days
-            self._state = "{} - {}".format(
-                name,
-                start.strftime("%-d %B %Y %H:%M")
-            )
+            start = val["start"].datetime
+            self._event_attributes["start"] = start
+            end = val["end"].datetime
+            self._event_attributes["end"] = end
+            location = val.get("location", "")
+            self._event_attributes["location"] = location
+            name = val.get("name", "unknown")
+            self._event_attributes["name"] = name
+            self._event_attributes["eta"] = (
+                start - dt.datetime.now(start.tzinfo) + timedelta(days=1)
+            ).days
+            self._state = "{} - {}".format(name, start.strftime("%-d %B %Y %H:%M"))
 
 
 # pylint: disable=too-few-public-methods
@@ -270,7 +280,10 @@ class ICalData(object):
     """
 
     def __init__(self, resource):
-        self._request = requests.Request('GET', resource).prepare()
+        if resource.startswith("http"):
+            self._request = requests.Request("GET", resource).prepare()
+        else:
+            self._file = resource
         self.data = None
 
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
@@ -279,12 +292,15 @@ class ICalData(object):
         import icalendar
 
         self.data = []
-
         try:
-            with requests.Session() as sess:
-                response = sess.send(self._request, timeout=30)
+            if self._file:
+                rawcal = open(self._file, "r")
 
-            cal = icalendar.Calendar.from_ical(response.text.replace("\x00", ""))
+            else:
+                with requests.Session() as sess:
+                    response = sess.send(self._request, timeout=30)
+                rawcal = response.text.replace("\x00", "")
+            cal = icalendar.Calendar.from_ical(rawcal)
             today = arrow.utcnow()
             events = dateparser(cal, today)
 
