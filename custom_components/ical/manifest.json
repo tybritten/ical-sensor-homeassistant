@@ -1,5 +1,5 @@
 {
-  "domain": "ical",
+  "domain": "ics",
   "name": "ical Sensor",
   "config_flow": true,
   "issue_tracker": "https://github.com/tybritten/ical-sensor-homeassistant/issues",
@@ -12,6 +12,7 @@
   "homekit": {},
   "dependencies": [],
   "codeowners": [
-    "@Olen"
+    "@Olen",
+    "@TyBritten"
   ]
 }
