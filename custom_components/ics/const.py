@@ -1,7 +1,7 @@
 """Constants for the ical integration."""
 
 VERSION = "0.9"
-DOMAIN = "ical"
+DOMAIN = "ics"
 
 CONF_MAX_EVENTS = "max_events"
 CONF_DAYS = "days"
