@@ -1,7 +1,8 @@
 {
   "domain": "ical",
-  "name": "ical",
+  "name": "ical Sensor",
   "config_flow": true,
+  "issue_tracker": "https://github.com/tybritten/ical-sensor-homeassistant/issues",
   "documentation": "https://www.home-assistant.io/integrations/ical",
   "requirements": [
     "icalendar==4.0.7"
@@ -11,6 +12,7 @@
   "homekit": {},
   "dependencies": [],
   "codeowners": [
-    "@Olen"
+    "@Olen",
+    "@TyBritten"
   ]
 }
