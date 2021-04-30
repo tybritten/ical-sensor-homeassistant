@@ -15,5 +15,7 @@
   "codeowners": [
     "@Olen",
     "@TyBritten"
-  ]
+  ],
+  "iot_class": "cloud_polling"
+
 }
