@@ -159,3 +159,15 @@ class ICalSensor(Entity):
             if not val.get("all_day"):
                 self._state += f" {start.strftime('%H:%M')}"
             # self._is_available = True
+        elif self._event_number >= len(event_list):
+            # No further events are found in the calendar
+            self._event_attributes = {
+                "summary": None,
+                "description": None,
+                "location": None,
+                "start": None,
+                "end": None,
+                "eta": None,
+            }
+            self._state = None
+            self._is_available = None
