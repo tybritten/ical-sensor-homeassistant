@@ -114,14 +114,14 @@ class ICalSensor(Entity):
         return self._state
 
     @property
-    def device_state_attributes(self):
+    def extra_state_attributes(self):
         """Return the attributes of the event."""
         return self._event_attributes
 
     @property
     def available(self):
         """Return True if ZoneMinder is available."""
-        return self.device_state_attributes["start"] is not None
+        return self.extra_state_attributes["start"] is not None
 
     async def async_update(self):
         """Update the sensor."""
