@@ -43,7 +43,7 @@ class ICalCalendarEventDevice(CalendarEventDevice):
         """Create the iCal Calendar Event Device."""
         self.entity_id = entity_id
         self._event = None
-        self._attr_name = name
+        self._name = name
         self._offset_reached = False
         self.ical_events = ical_events
 
@@ -77,7 +77,7 @@ class ICalCalendarEventDevice(CalendarEventDevice):
             return
         (summary, offset) = extract_offset(event["summary"], OFFSET)
         event["summary"] = summary
-        self._offset_reached = is_offset_reached(get_date(event["start"]), offset)
+        self._offset_reached = is_offset_reached(event["start"], offset)
         self._event = copy.deepcopy(event)
         self._event["start"] = {}
         self._event["end"] = {}
