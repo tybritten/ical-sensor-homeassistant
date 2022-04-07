@@ -118,6 +118,9 @@ class ICalEvents:
             with open(parts.path) as f:
                 text = f.read()
         else:
+            if parts.scheme == 'webcal':
+                # There is a potential issue here if the real URL is http, not https
+                self.url = parts.geturl().replace('webcal', 'https', 1)
             session = async_get_clientsession(self.hass, verify_ssl=self.verify_ssl)
             async with session.get(self.url) as response:
                 text = await response.text()
