@@ -1,4 +1,5 @@
 {
   "name": "iCal Sensor",
-  "domains": ["sensor"]
+  "domains": ["sensor"],
+  "homeassistant":"2022.4.0"
 }
