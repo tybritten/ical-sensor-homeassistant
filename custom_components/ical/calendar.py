@@ -78,8 +78,12 @@ class ICalCalendarEventDevice(CalendarEntity):
             return
         (summary, offset) = extract_offset(event["summary"], OFFSET)
         event["summary"] = summary
+        (location, offset) = extract_offset(event["location"], OFFSET)
+        event["location"] = location
+        (description, offset) = extract_offset(event["description"], OFFSET)
+        event["description"] = description
         self._offset_reached = is_offset_reached(event["start"], offset)
-        self._event = CalendarEvent(event["start"], event["end"], event["summary"])
+        self._event = CalendarEvent(event["start"], event["end"], event["summary"], event["description"], event["location"])
         # strongly typed class required.
         # self._event = copy.deepcopy(event)
         # self._event["start"] = {}
