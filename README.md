@@ -29,5 +29,5 @@ The integration is set up using the GUI.
 
 ### Breaking change
 
-If you have used this integration previously with yaml-config, you need to set up the calendars agan using the GUI and adjust any scripts/automations etc. to use the new entity_ids that are generated automatically.
+If you have used this integration previously with yaml-config, you need to set up the calendars again using the GUI and adjust any scripts/automations etc. to use the new entity_ids that are generated automatically.
 You can then safely remove any ical sensor and integration config from your yaml files.
