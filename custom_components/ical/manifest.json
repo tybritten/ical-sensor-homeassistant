@@ -9,8 +9,8 @@
   "dependencies": [],
   "documentation": "https://www.home-assistant.io/integrations/ical",
   "homekit": {},
-  "issue_tracker": "https://github.com/tybritten/ical-sensor-homeassistant/issues",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/tybritten/ical-sensor-homeassistant/issues",
   "requirements": [
     "icalendar==5.0.4"
   ],
