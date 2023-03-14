@@ -1,21 +1,20 @@
 {
   "domain": "ical",
   "name": "ical Sensor",
-  "version": "1.3",
-  "config_flow": true,
-  "issue_tracker": "https://github.com/tybritten/ical-sensor-homeassistant/issues",
-  "documentation": "https://www.home-assistant.io/integrations/ical",
-  "requirements": [
-    "icalendar==5.0.4"
-  ],
-  "ssdp": [],
-  "zeroconf": [],
-  "homekit": {},
-  "dependencies": [],
   "codeowners": [
     "@Olen",
     "@TyBritten"
   ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.home-assistant.io/integrations/ical",
+  "homekit": {},
+  "issue_tracker": "https://github.com/tybritten/ical-sensor-homeassistant/issues",
   "iot_class": "cloud_polling"
-
+  "requirements": [
+    "icalendar==5.0.4"
+  ],
+  "ssdp": [],
+  "version": "1.3",
+  "zeroconf": []
 }
