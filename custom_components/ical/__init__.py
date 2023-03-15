@@ -127,7 +127,7 @@ class ICalEvents:
                 # There is a potential issue here if the real URL is http, not https
                 self.url = parts.geturl().replace("webcal", "https", 1)
             session = async_get_clientsession(self.hass, verify_ssl=self.verify_ssl)
-            async with session.get(self.url) as response:
+            async with session.get(self.url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36"}) as response:
                 text = await response.text()
         if text is not None:
             # Some calendars are for some reason filled with NULL-bytes.
