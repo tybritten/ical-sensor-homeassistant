@@ -94,9 +94,9 @@ class ICalSensor(Entity):
         self._is_available = None
 
     @property
-    def entity_id(self):
-        """Return the entity_id of the sensor."""
-        return self._entity_id
+    def unique_id(self) -> str:
+        """Return the unique ID of the sensor."""
+        return f"{DOMAIN}_{self.ical_events.name.lower()}_event_{self._event_number}"
 
     @property
     def name(self):
