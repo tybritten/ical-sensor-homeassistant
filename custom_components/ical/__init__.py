@@ -32,7 +32,7 @@ PLATFORMS = ["sensor", "calendar"]
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=120)
 
 
-def setup(hass, config):
+def setup(hass: HomeAssistant, config):
     """Set up this integration with config flow."""
     return True
 
@@ -75,7 +75,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
 class ICalEvents:
     """Get a list of events."""
 
-    def __init__(self, hass, config):
+    def __init__(self, hass: HomeAssistant, config):
         """Set up a calendar object."""
         self.hass = hass
         self.name = config.get(CONF_NAME)
@@ -87,7 +87,7 @@ class ICalEvents:
         self.event = None
         self.all_day = False
 
-    async def async_get_events(self, hass, start_date, end_date):
+    async def async_get_events(self, hass: HomeAssistant, start_date, end_date):
         """Get list of upcoming events."""
         _LOGGER.debug("Running ICalEvents async_get_events")
         events = []
