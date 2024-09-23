@@ -14,7 +14,7 @@ And it will create a calendar-entry that can be used in the calendar cards etc.
 
 ## Installation
 
-Copy all files from the "custom_components/ical" directory to your home-assistant config directory under custom_components/ical.
+Install with HACS
 
 
 ### Setup
