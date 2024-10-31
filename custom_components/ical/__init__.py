@@ -1,7 +1,7 @@
 """The ical integration."""
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import logging
 from urllib.parse import urlparse
 
@@ -31,6 +31,8 @@ PLATFORMS = ["sensor", "calendar"]
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=120)
 
+def check_event(d: datetime, all_day: bool) -> datetime | date:
+    return d.date() if all_day else d
 
 def setup(hass: HomeAssistant, config):
     """Set up this integration with config flow."""
@@ -107,8 +109,8 @@ class ICalEvents:
                     # strongly type class fix
                     events.append(
                         CalendarEvent(
-                            event["start"],
-                            event["end"],
+                            check_event(event["start"], event["all_day"]),
+                            check_event(event["end"], event["all_day"]),
                             event["summary"],
                             event["description"],
                             event["location"],
