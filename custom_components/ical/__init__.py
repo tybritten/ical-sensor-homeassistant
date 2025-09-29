@@ -136,7 +136,9 @@ class ICalEvents:
             # Some calendars are for some reason filled with NULL-bytes.
             # They break the parsing, so we get rid of them
             loop = asyncio.get_running_loop()
-            event_list = await loop.run_in_executor(None, icalendar.Calendar.from_ical, text.replace("\x00", ""))
+            event_list = await loop.run_in_executor(
+                None, icalendar.Calendar.from_ical, text.replace("\x00", "")
+            )
             start_of_events = dt_util.start_of_local_day()
             end_of_events = dt_util.start_of_local_day() + timedelta(days=self.days)
 
@@ -277,21 +279,23 @@ class ICalEvents:
                 # Lets get all RRULE-generated events which will start 7 days before today and end before to_date
                 # to ensure we are catching (most) recurring events that might already have started.
                 try:
-                    # Convert dates to datetime if needed
+                    # Convert dates to datetime if needed and ensure consistent timezone handling
                     after_date = from_date - timedelta(days=7)
                     if not isinstance(after_date, datetime):
                         after_date = datetime.combine(after_date, datetime.min.time())
                     if not isinstance(to_date, datetime):
                         to_date = datetime.combine(to_date, datetime.max.time())
 
-                    starts = start_rules.between(
-                        after=after_date,
-                        before=to_date
-                    )
-                    ends = end_rules.between(
-                        after=after_date,
-                        before=to_date
-                    )
+                    # Ensure both dates are timezone-aware
+                    if after_date.tzinfo is None:
+                        after_date = after_date.replace(
+                            tzinfo=dt_util.DEFAULT_TIME_ZONE
+                        )
+                    if to_date.tzinfo is None:
+                        to_date = to_date.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+
+                    starts = start_rules.between(after=after_date, before=to_date)
+                    ends = end_rules.between(after=after_date, before=to_date)
                 except Exception as e:
                     _LOGGER.error(
                         "Exception %s in starts/ends: %s - Start: %s - End: %s, RRule: %s",
