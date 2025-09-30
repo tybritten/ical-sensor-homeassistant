@@ -24,10 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
-# TODO List the platforms that you want to support.
-# For your initial PR, limit it to 1 platform.
 PLATFORMS = ["sensor", "calendar"]
-# PLATFORMS = ["sensor"]
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=120)
 
@@ -40,11 +37,6 @@ def setup(hass: HomeAssistant, config):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up ical from a config entry."""
     config = entry.data
-    _LOGGER.debug(
-        "Running init async_setup_entry for calendar %s", config.get(CONF_NAME)
-    )
-    # TODO Store an API object for your platforms to access
-    # hass.data[DOMAIN][entry.entry_id] = MyApi(...)
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
     hass.data[DOMAIN][config.get(CONF_NAME)] = ICalEvents(hass=hass, config=config)
@@ -57,7 +49,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
     config = entry.data
-    _LOGGER.debug("Running async_unload_entry for calendar %s", config.get(CONF_NAME))
     unload_ok = all(
         await asyncio.gather(
             *[
@@ -89,22 +80,11 @@ class ICalEvents:
 
     async def async_get_events(self, hass: HomeAssistant, start_date, end_date):
         """Get list of upcoming events."""
-        _LOGGER.debug("Running ICalEvents async_get_events")
         events = []
         if len(self.calendar) > 0:
             for event in self.calendar:
-                _LOGGER.debug(
-                    "Checking if event %s has start %s and end %s within in the limit: %s and %s",
-                    event["summary"],
-                    event["start"],
-                    event["end"],
-                    start_date,
-                    end_date,
-                )
 
                 if event["start"] < end_date and event["end"] > start_date:
-                    _LOGGER.debug("... and it has")
-                    # strongly type class fix
                     events.append(
                         CalendarEvent(
                             event["start"],
@@ -120,21 +100,17 @@ class ICalEvents:
     @Throttle(MIN_TIME_BETWEEN_UPDATES)
     async def update(self):
         """Update list of upcoming events."""
-        _LOGGER.debug("Running ICalEvents update for calendar %s", self.name)
         parts = urlparse(self.url)
         if parts.scheme == "file":
             with open(parts.path) as f:
                 text = f.read()
         else:
             if parts.scheme == "webcal":
-                # There is a potential issue here if the real URL is http, not https
                 self.url = parts.geturl().replace("webcal", "https", 1)
             session = async_get_clientsession(self.hass, verify_ssl=self.verify_ssl)
             async with session.get(self.url) as response:
                 text = await response.text()
         if text is not None:
-            # Some calendars are for some reason filled with NULL-bytes.
-            # They break the parsing, so we get rid of them
             loop = asyncio.get_running_loop()
             event_list = await loop.run_in_executor(
                 None, icalendar.Calendar.from_ical, text.replace("\x00", "")
@@ -150,11 +126,6 @@ class ICalEvents:
             found_next_event = False
             for event in self.calendar:
                 if event["end"] > dt_util.now() and not found_next_event:
-                    _LOGGER.debug(
-                        "Event %s it the first event with end in the future: %s",
-                        event["summary"],
-                        event["end"],
-                    )
                     self.event = event
                     found_next_event = True
 
@@ -170,8 +141,6 @@ class ICalEvents:
             if "RRULE" in event:
                 _LOGGER.debug("RRULE in event: %s", str(event["SUMMARY"]))
                 rrule = event["RRULE"]
-                # Since we dont get both the start and the end in a single object, we need to generate two lists,
-                # One of all the DTSTARTs and another list of all the DTENDs
                 start_rules = rruleset()
                 end_rules = rruleset()
 
@@ -221,19 +190,30 @@ class ICalEvents:
                         event["DTEND"].dt, dt_util.DEFAULT_TIME_ZONE
                     )
 
-                # So hopefully we now have a proper dtstart we can use to create the start-times according to the rrule
-                _LOGGER.debug("RRulestr %s", rrule.to_ical().decode("utf-8"))
                 try:
-                    _LOGGER.debug(
-                        "Creating RRule with dtstart type: %s, value: %s",
-                        type(dtstart),
-                        dtstart,
-                    )
                     rrule_obj = rrulestr(
                         rrule.to_ical().decode("utf-8"), dtstart=dtstart
                     )
-                    _LOGGER.debug("RRule object created, type: %s", type(rrule_obj))
                     start_rules.rrule(rrule_obj)
+                except ValueError as e:
+                    # Handle specific ValueError like "year 10000 is out of range"
+                    if "year" in str(e) and "out of range" in str(e):
+                        _LOGGER.warning(
+                            "RRule for event '%s' contains dates out of range. Skipping. Error: %s",
+                            str(event.get("SUMMARY", "Unknown")),
+                            str(e),
+                        )
+                        continue
+                    else:
+                        # If this fails, move on to the next event
+                        _LOGGER.error(
+                            "ValueError in start_rules.rrule: %s - Start: %s - RRule: %s",
+                            str(e),
+                            str(event["SUMMARY"]),
+                            str(dtstart),
+                            str(event["RRULE"]),
+                        )
+                        continue
                 except Exception as e:
                     # If this fails, move on to the next event
                     _LOGGER.error(
@@ -244,20 +224,29 @@ class ICalEvents:
                         str(event["RRULE"]),
                     )
                     continue
-                _LOGGER.debug("Start rules %s", str(list(start_rules)))
 
-                # ... And the same for end_rules
                 try:
-                    _LOGGER.debug(
-                        "Creating RRule for end with dtstart type: %s, value: %s",
-                        type(dtend),
-                        dtend,
-                    )
                     rrule_obj = rrulestr(rrule.to_ical().decode("utf-8"), dtstart=dtend)
-                    _LOGGER.debug(
-                        "RRule object for end created, type: %s", type(rrule_obj)
-                    )
                     end_rules.rrule(rrule_obj)
+                except ValueError as e:
+                    # Handle specific ValueError like "year 10000 is out of range"
+                    if "year" in str(e) and "out of range" in str(e):
+                        _LOGGER.warning(
+                            "RRule for event '%s' contains end dates out of range. Using start rules. Error: %s",
+                            str(event.get("SUMMARY", "Unknown")),
+                            str(e),
+                        )
+                        end_rules = start_rules
+                    else:
+                        # If this fails, just use the start-rules
+                        _LOGGER.error(
+                            "ValueError in end_rules.rrule: %s - End: %s - RRule: %s",
+                            str(e),
+                            str(event["SUMMARY"]),
+                            str(dtend),
+                            str(event["RRULE"]),
+                        )
+                        end_rules = start_rules
                 except Exception as e:
                     # If this fails, just use the start-rules
                     _LOGGER.error(
@@ -268,23 +257,13 @@ class ICalEvents:
                         str(event["RRULE"]),
                     )
                     end_rules = start_rules
-
-                # EXDATEs are hard to parse.  They might be a list, or just a single object.
-                # They might contain TZ-data, they might not...
-                # We just do our best, and will catch the exception when it fails and move on the the next event.
-                try:
-                    if "EXDATE" in event:
-                        _LOGGER.debug("Processing EXDATE: %s", str(event["EXDATE"]))
+                
+                # Only process EXDATEs if we have any
+                if "EXDATE" in event:
+                    try:
                         if isinstance(event["EXDATE"], list):
                             for exdate in event["EXDATE"]:
-                                _LOGGER.debug("EXDATE item: %s", str(exdate))
                                 for edate in exdate.dts:
-                                    _LOGGER.debug(
-                                        "EXDATE date type: %s, value: %s",
-                                        type(edate.dt),
-                                        edate.dt,
-                                    )
-                                    # Convert EXDATE to datetime if it's a date object
                                     exdate_dt = edate.dt
                                     if not isinstance(exdate_dt, datetime):
                                         exdate_dt = await self._ical_date_fixer(
@@ -293,14 +272,7 @@ class ICalEvents:
                                     start_rules.exdate(exdate_dt)
                                     end_rules.exdate(exdate_dt)
                         else:
-                            _LOGGER.debug("Single EXDATE: %s", str(event["EXDATE"]))
                             for edate in event["EXDATE"].dts:
-                                _LOGGER.debug(
-                                    "EXDATE date type: %s, value: %s",
-                                    type(edate.dt),
-                                    edate.dt,
-                                )
-                                # Convert EXDATE to datetime if it's a date object
                                 exdate_dt = edate.dt
                                 if not isinstance(exdate_dt, datetime):
                                     exdate_dt = await self._ical_date_fixer(
@@ -308,53 +280,32 @@ class ICalEvents:
                                     )
                                 start_rules.exdate(exdate_dt)
                                 end_rules.exdate(exdate_dt)
-                except Exception as e:
-                    _LOGGER.error(
-                        "Exception %s in EXDATE: %s - Start: %s - RRule: %s - EXDate: %s",
-                        str(e),
-                        str(event["SUMMARY"]),
-                        str(dtstart),
-                        str(event["RRULE"]),
-                        str(event["EXDATE"]),
-                    )
-                    continue
+                    except Exception as e:
+                        _LOGGER.error(
+                            "Exception %s in EXDATE: %s - Start: %s - RRule: %s - EXDate: %s",
+                            str(e),
+                            str(event["SUMMARY"]),
+                            str(dtstart),
+                            str(event["RRULE"]),
+                            str(event["EXDATE"]),
+                        )
+                        continue
 
-                # Lets get all RRULE-generated events which will start 7 days before today and end before to_date
-                # to ensure we are catching (most) recurring events that might already have started.
                 try:
                     # Convert dates to datetime if needed and ensure timezone awareness
-                    _LOGGER.debug(
-                        "Converting dates - from_date type: %s, value: %s",
-                        type(from_date),
-                        from_date,
-                    )
                     after_date = from_date - timedelta(days=7)
-                    _LOGGER.debug(
-                        "After date conversion - after_date type: %s, value: %s",
-                        type(after_date),
-                        after_date,
-                    )
+                    
                     if not isinstance(after_date, datetime):
-                        _LOGGER.debug("Converting after_date to datetime")
                         after_date = datetime.combine(after_date, datetime.min.time())
                     if not isinstance(to_date, datetime):
-                        _LOGGER.debug("Converting to_date to datetime")
                         to_date = datetime.combine(to_date, datetime.max.time())
 
                     # Ensure both dates are timezone-aware
-                    _LOGGER.debug(
-                        "Before timezone check - after_date type: %s, value: %s, tzinfo: %s",
-                        type(after_date),
-                        after_date,
-                        after_date.tzinfo if hasattr(after_date, "tzinfo") else None,
-                    )
                     if after_date.tzinfo is None:
-                        _LOGGER.debug("Adding timezone to after_date")
                         after_date = after_date.replace(
                             tzinfo=dt_util.DEFAULT_TIME_ZONE
                         )
                     if to_date.tzinfo is None:
-                        _LOGGER.debug("Adding timezone to to_date")
                         to_date = to_date.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
 
                     # Additional check to ensure consistent datetime types
@@ -362,87 +313,44 @@ class ICalEvents:
                     if hasattr(after_date, "date") and not isinstance(
                         after_date, datetime
                     ):
-                        _LOGGER.debug("Additional conversion of after_date to datetime")
                         after_date = datetime.combine(after_date, datetime.min.time())
                     if hasattr(to_date, "date") and not isinstance(to_date, datetime):
-                        _LOGGER.debug("Additional conversion of to_date to datetime")
                         to_date = datetime.combine(to_date, datetime.max.time())
 
                     # Ensure timezone awareness for both dates
                     if hasattr(after_date, "tzinfo") and after_date.tzinfo is None:
-                        _LOGGER.debug("Ensuring timezone awareness for after_date")
                         after_date = after_date.replace(
                             tzinfo=dt_util.DEFAULT_TIME_ZONE
                         )
                     if hasattr(to_date, "tzinfo") and to_date.tzinfo is None:
-                        _LOGGER.debug("Ensuring timezone awareness for to_date")
                         to_date = to_date.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
 
-                    # Add detailed logging to troubleshoot datetime comparison issues
-                    _LOGGER.debug(
-                        "RRule processing - after_date type: %s, value: %s, tzinfo: %s",
-                        type(after_date),
-                        after_date,
-                        after_date.tzinfo if hasattr(after_date, "tzinfo") else None,
-                    )
-                    _LOGGER.debug(
-                        "RRule processing - to_date type: %s, value: %s, tzinfo: %s",
-                        type(to_date),
-                        to_date,
-                        to_date.tzinfo if hasattr(to_date, "tzinfo") else None,
-                    )
 
-                    # Add logging to see what the RRule is generating
-                    try:
-                        # Try to get a sample of dates from the RRule to see their types
-                        _LOGGER.debug("Getting sample start dates from RRule")
-                        sample_start_dates = list(start_rules)
-                        _LOGGER.debug(
-                            "Sample start dates count: %s", len(sample_start_dates)
-                        )
-                        if sample_start_dates:
-                            _LOGGER.debug(
-                                "RRule sample start date - first date type: %s, value: %s",
-                                type(sample_start_dates[0]),
-                                sample_start_dates[0],
-                            )
-                        _LOGGER.debug("Getting sample end dates from RRule")
-                        sample_end_dates = list(end_rules)
-                        _LOGGER.debug(
-                            "Sample end dates count: %s", len(sample_end_dates)
-                        )
-                        if sample_end_dates:
-                            _LOGGER.debug(
-                                "RRule sample end date - first date type: %s, value: %s",
-                                type(sample_end_dates[0]),
-                                sample_end_dates[0],
-                            )
-                    except Exception as sample_error:
-                        _LOGGER.debug(
-                            "Unable to get sample dates from RRule: %s",
-                            str(sample_error),
-                        )
 
-                    _LOGGER.debug(
-                        "Calling start_rules.between with after_date type: %s, value: %s and to_date type: %s, value: %s",
-                        type(after_date),
-                        after_date,
-                        type(to_date),
-                        to_date,
-                    )
                     # Ensure consistent datetime types for comparison
                     # The issue is that rruleset.between can return date objects even when we're working with datetime objects
                     starts = start_rules.between(after=after_date, before=to_date)
-                    _LOGGER.debug("start_rules.between completed successfully")
-                    _LOGGER.debug(
-                        "Calling end_rules.between with after_date type: %s, value: %s and to_date type: %s, value: %s",
-                        type(after_date),
-                        after_date,
-                        type(to_date),
-                        to_date,
-                    )
                     ends = end_rules.between(after=after_date, before=to_date)
-                    _LOGGER.debug("end_rules.between completed successfully")
+                except ValueError as e:
+                    # Handle specific ValueError like "year 10000 is out of range"
+                    if "year" in str(e) and "out of range" in str(e):
+                        _LOGGER.warning(
+                            "RRule date range for event '%s' is out of range. Skipping. Error: %s",
+                            str(event.get("SUMMARY", "Unknown")),
+                            str(e),
+                        )
+                        continue
+                    else:
+                        # Add more detailed logging to troubleshoot the datetime comparison error
+                        _LOGGER.error(
+                            "ValueError in starts/ends: %s - Start: %s - End: %s, RRule: %s",
+                            str(e),
+                            str(event["SUMMARY"]),
+                            str(dtstart),
+                            str(dtend),
+                            str(event["RRULE"]),
+                        )
+                        continue
                 except Exception as e:
                     # Add more detailed logging to troubleshoot the datetime comparison error
                     _LOGGER.error(
@@ -453,29 +361,13 @@ class ICalEvents:
                         str(dtend),
                         str(event["RRULE"]),
                     )
-                    # Log additional details about the types of objects involved
-                    _LOGGER.error(
-                        "Additional debug info - after_date type: %s, to_date type: %s",
-                        type(after_date) if "after_date" in locals() else "undefined",
-                        type(to_date) if "to_date" in locals() else "undefined",
-                    )
-                    # Log the actual values if they exist
-                    if "after_date" in locals():
-                        _LOGGER.error("after_date value: %s", after_date)
-                    if "to_date" in locals():
-                        _LOGGER.error("to_date value: %s", to_date)
                     continue
 
-                _LOGGER.debug("Starts: %s", str(starts))
-                # We might get RRULEs that does not fall within the limits above, lets just skip them
                 if len(starts) < 1:
-                    _LOGGER.debug("Event does not happen within our limits")
                     continue
 
-                # It has to be a better way to do this...But at least it seems to work for now.
                 ends.reverse()
                 for start in starts:
-                    # Sometimes we dont get the same number of starts and ends...
                     if len(ends) == 0:
                         continue
                     end = ends.pop()
@@ -484,7 +376,6 @@ class ICalEvents:
                     if event_dict:
                         events.append(event_dict)
 
-                _LOGGER.debug("Done parsing RRULE")
 
             else:
                 # Let's use the same magic as for rrules to get this (as) right (as possible)
@@ -493,30 +384,38 @@ class ICalEvents:
                     if "DTEND" in event and event[
                         "DTEND"
                     ].dt.date() < from_date.date() - timedelta(days=30):
-                        _LOGGER.debug(
-                            "Old event 1 %s - ended %s",
-                            event["SUMMARY"],
-                            str(event["DTEND"].dt),
-                        )
+                        # Only log if we're at debug level to avoid performance impact
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug(
+                                "Old event 1 %s - ended %s",
+                                event["SUMMARY"],
+                                str(event["DTEND"].dt),
+                            )
                         continue
                 except Exception as e:
-                    _LOGGER.debug("1: %s", str(e))
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug("1: %s", str(e))
                     pass
                 try:
                     if "DTEND" in event and event[
                         "DTEND"
                     ].dt < from_date.date() - timedelta(days=30):
-                        _LOGGER.debug(
-                            "Old event 2 %s - ended %s",
-                            event["SUMMARY"],
-                            str(event["DTEND"].dt),
-                        )
+                        # Only log if we're at debug level to avoid performance impact
+                        if _LOGGER.isEnabledFor(logging.DEBUG):
+                            _LOGGER.debug(
+                                "Old event 2 %s - ended %s",
+                                event["SUMMARY"],
+                                str(event["DTEND"].dt),
+                            )
                         continue
                 except Exception as e:
-                    _LOGGER.debug("2: %s", str(e))
+                    if _LOGGER.isEnabledFor(logging.DEBUG):
+                        _LOGGER.debug("2: %s", str(e))
                     pass
 
-                _LOGGER.debug("DTSTART in event: {}".format(event["DTSTART"].dt))
+                # Only log if we're at debug level to avoid performance impact
+                if _LOGGER.isEnabledFor(logging.DEBUG):
+                    _LOGGER.debug("DTSTART in event: {}".format(event["DTSTART"].dt))
                 dtstart = await self._ical_date_fixer(
                     event["DTSTART"].dt, dt_util.DEFAULT_TIME_ZONE
                 )
@@ -555,7 +454,9 @@ class ICalEvents:
 
         # Skip this event if it's in the past
         if end.date() < from_date.date():
-            _LOGGER.debug("This event has already ended")
+            # Only log if we're at debug level to avoid performance impact
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("This event has already ended")
             return None
         # Ignore events that ended this midnight.
         if (
@@ -564,15 +465,19 @@ class ICalEvents:
             and end.minute == 0
             and end.second == 0
         ):
-            _LOGGER.debug("This event has already ended")
+            # Only log if we're at debug level to avoid performance impact
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug("This event has already ended")
             return None
-        _LOGGER.debug(
-            "Start: %s Tzinfo: %s Default: %s StartAs %s",
-            str(start),
-            str(start.tzinfo),
-            dt_util.DEFAULT_TIME_ZONE,
-            start.astimezone(dt_util.DEFAULT_TIME_ZONE),
-        )
+        # Only log if we're at debug level to avoid performance impact
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "Start: %s Tzinfo: %s Default: %s StartAs %s",
+                str(start),
+                str(start.tzinfo),
+                dt_util.DEFAULT_TIME_ZONE,
+                start.astimezone(dt_util.DEFAULT_TIME_ZONE),
+            )
         event_dict = {
             "summary": event.get("SUMMARY", "Unknown"),
             "start": start.astimezone(dt_util.DEFAULT_TIME_ZONE),
@@ -581,14 +486,18 @@ class ICalEvents:
             "description": event.get("DESCRIPTION"),
             "all_day": self.all_day,
         }
-        _LOGGER.debug("Event to add: %s", str(event_dict))
+        # Only log if we're at debug level to avoid performance impact
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("Event to add: %s", str(event_dict))
         return event_dict
 
     async def _ical_date_fixer(self, indate, timezone="UTC"):
         """Convert something that looks kind of like a date or datetime to a timezone-aware datetime-object."""
         self.all_day = False
 
-        _LOGGER.debug("Fixing date: %s in TZ %s", str(indate), str(timezone))
+        # Only log if we're at debug level to avoid performance impact
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("Fixing date: %s in TZ %s", str(indate), str(timezone))
 
         # Indate can be a single entry or a list with one item...
         if isinstance(indate, list):
@@ -608,7 +517,9 @@ class ICalEvents:
             self._date_replace, indate, timezone
         )
 
-        _LOGGER.debug("Out date: %s", str(indate_replaced))
+        # Only log if we're at debug level to avoid performance impact
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("Out date: %s", str(indate_replaced))
         return indate_replaced
 
     def _date_replace(self, indate: datetime, timezone):
@@ -616,24 +527,32 @@ class ICalEvents:
 
         # Indate can be TZ naive
         if indate.tzinfo is None or indate.tzinfo.utcoffset(indate) is None:
-            _LOGGER.debug(
-                "TZ-Naive indate: %s Adding TZ %s",
-                str(indate),
-                str(gettz(str(timezone))),
-            )
+            # Only log if we're at debug level to avoid performance impact
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "TZ-Naive indate: %s Adding TZ %s",
+                    str(indate),
+                    str(gettz(str(timezone))),
+                )
             # tz = pytz.timezone(str(timezone))
             # indate = tz.localize(indate)
             return indate.replace(tzinfo=gettz(str(timezone)))
         # Rules dont play well with pytz
-        _LOGGER.debug("Tzinfo 1: %s", str(indate.tzinfo))
+        # Only log if we're at debug level to avoid performance impact
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("Tzinfo 1: %s", str(indate.tzinfo))
         if not str(indate.tzinfo).startswith("tzfile"):
-            _LOGGER.debug(
-                "Pytz indate: %s. replacing with tz %s",
-                str(indate),
-                str(gettz(str(indate.tzinfo))),
-            )
+            # Only log if we're at debug level to avoid performance impact
+            if _LOGGER.isEnabledFor(logging.DEBUG):
+                _LOGGER.debug(
+                    "Pytz indate: %s. replacing with tz %s",
+                    str(indate),
+                    str(gettz(str(indate.tzinfo))),
+                )
             return indate.replace(tzinfo=gettz(str(indate.tzinfo)))
         if str(indate.tzinfo).endswith("/UTC"):
             return indate.replace(tzinfo=tzutc)
-        _LOGGER.debug("Tzinfo 2: %s", str(indate.tzinfo))
+        # Only log if we're at debug level to avoid performance impact
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug("Tzinfo 2: %s", str(indate.tzinfo))
         return None
