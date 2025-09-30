@@ -378,7 +378,6 @@ class ICalEvents:
 
 
             else:
-                # Let's use the same magic as for rrules to get this (as) right (as possible)
                 try:
                     # Just ignore events that ended a long time ago
                     if "DTEND" in event and event[
