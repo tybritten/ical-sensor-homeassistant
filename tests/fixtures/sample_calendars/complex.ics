@@ -1,0 +1,31 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Test//Test Calendar//EN
+BEGIN:VEVENT
+UID:complex1@test.com
+DTSTART:20230101T120000Z
+DTEND:20230101T130000Z
+SUMMARY:Complex Event with Attachment
+DESCRIPTION:This is a complex event with attachments and categories
+LOCATION:Complex Location
+CATEGORIES:Test,Complex
+ATTACH:https://example.com/attachment.pdf
+END:VEVENT
+BEGIN:VEVENT
+UID:complex2@test.com
+DTSTART;VALUE=DATE:20230102
+DTEND;VALUE=DATE:20230103
+SUMMARY:Complex All-Day Event
+DESCRIPTION:This is a complex all-day event with multiple categories
+CATEGORIES:Test,AllDay,Complex
+END:VEVENT
+BEGIN:VEVENT
+UID:complex3@test.com
+DTSTART:20230103T120000Z
+DTEND:20230103T130000Z
+SUMMARY:Recurring Complex Event
+RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=MO,WE,FR
+EXDATE:20230104T120000Z
+DESCRIPTION:This is a complex recurring event with exclusions
+END:VEVENT
+END:VCALENDAR
