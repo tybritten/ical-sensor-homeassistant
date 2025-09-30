@@ -1,0 +1,6 @@
+# Test dependencies for iCal Home Assistant custom component
+pytest>=6.0
+pytest-asyncio
+pytest-cov
+homeassistant
+icalendar==5.0.7

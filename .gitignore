@@ -2,3 +2,8 @@
 .vscode/
 .python-version
 *.pyc
+.coverage
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+.venv/
