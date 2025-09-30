@@ -180,9 +180,10 @@ async def test_calendar_device_async_update_with_no_event(mock_hass):
 
 @pytest.mark.asyncio
 async def test_calendar_device_with_rrule_ics_file(mock_hass):
-    """Test ICalCalendarEventDevice with the rrule.ics file that currently causes errors."""
-    # This test demonstrates the error condition with the rrule.ics file
-    # The error is logged but not raised as an exception
+    """Test ICalCalendarEventDevice with the rrule.ics file that previously caused errors."""
+    # This test verifies that the datetime comparison error has been fixed
+    # The error "'<' not supported between instances of 'datetime.date' and 'datetime.datetime'"
+    # should no longer occur
     
     # Get the path to the rrule.ics file
     rrule_file_path = Path(__file__).parent / "fixtures" / "sample_calendars" / "rrule.ics"
@@ -207,14 +208,14 @@ async def test_calendar_device_with_rrule_ics_file(mock_hass):
     with patch('custom_components.ical._LOGGER.error') as mock_error:
         await ical_events.update()
         
-        # Check that the specific error was logged
+        # Check that the specific error was NOT logged (it should be fixed)
         error_logged = any(
             "'<' not supported between instances of 'datetime.date' and 'datetime.datetime'" in str(call)
             for call in mock_error.call_args_list
         )
         
-        # Assert that the error was logged
-        assert error_logged, "Expected error was not logged"
+        # Assert that the error was NOT logged (fix is working)
+        assert not error_logged, "The datetime comparison error should be fixed and not logged"
         
-        # Note: Some events may still be processed despite the error
-        # The important thing is that the error is logged
+        # Verify that events were processed successfully
+        assert len(ical_events.calendar) > 0, "Events should be processed successfully"
