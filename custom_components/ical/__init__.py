@@ -139,7 +139,9 @@ class ICalEvents:
             # This is mainly due to pythons handling of TZ-naive and TZ-aware timestamps, and the inconsistensies
             # in the way RRULEs are implemented in the icalendar library.
             if "RRULE" in event:
-                _LOGGER.debug("RRULE in event: %s", str(event["SUMMARY"]))
+                if "SUMMARY" not in event:
+                    _LOGGER.debug("Event without SUMMARY key: %s", str(event))
+                _LOGGER.debug("RRULE in event: %s", str(event.get("SUMMARY", "Unknown")))
                 rrule = event["RRULE"]
                 start_rules = rruleset()
                 end_rules = rruleset()
@@ -150,7 +152,7 @@ class ICalEvents:
                         if rrule["UNTIL"][0] < from_date - timedelta(days=30):
                             _LOGGER.debug(
                                 "Old event 1 %s - ended %s",
-                                event["SUMMARY"],
+                                event.get("SUMMARY", "Unknown"),
                                 str(rrule["UNTIL"][0]),
                             )
                             continue
@@ -209,7 +211,7 @@ class ICalEvents:
                         _LOGGER.error(
                             "ValueError in start_rules.rrule: %s - Start: %s - RRule: %s",
                             str(e),
-                            str(event["SUMMARY"]),
+                            str(event.get("SUMMARY", "Unknown")),
                             str(dtstart),
                             str(event["RRULE"]),
                         )
@@ -219,7 +221,7 @@ class ICalEvents:
                     _LOGGER.error(
                         "Exception %s in start_rules.rrule: %s - Start: %s - RRule: %s",
                         str(e),
-                        str(event["SUMMARY"]),
+                        str(event.get("SUMMARY", "Unknown")),
                         str(dtstart),
                         str(event["RRULE"]),
                     )
@@ -242,7 +244,7 @@ class ICalEvents:
                         _LOGGER.error(
                             "ValueError in end_rules.rrule: %s - End: %s - RRule: %s",
                             str(e),
-                            str(event["SUMMARY"]),
+                            str(event.get("SUMMARY", "Unknown")),
                             str(dtend),
                             str(event["RRULE"]),
                         )
@@ -252,7 +254,7 @@ class ICalEvents:
                     _LOGGER.error(
                         "Exception %s in end_rules.rrule: %s - End: %s - RRule: %s",
                         str(e),
-                        str(event["SUMMARY"]),
+                        str(event.get("SUMMARY", "Unknown")),
                         str(dtend),
                         str(event["RRULE"]),
                     )
@@ -284,7 +286,7 @@ class ICalEvents:
                         _LOGGER.error(
                             "Exception %s in EXDATE: %s - Start: %s - RRule: %s - EXDate: %s",
                             str(e),
-                            str(event["SUMMARY"]),
+                            str(event.get("SUMMARY", "Unknown")),
                             str(dtstart),
                             str(event["RRULE"]),
                             str(event["EXDATE"]),
@@ -345,7 +347,7 @@ class ICalEvents:
                         _LOGGER.error(
                             "ValueError in starts/ends: %s - Start: %s - End: %s, RRule: %s",
                             str(e),
-                            str(event["SUMMARY"]),
+                            str(event.get("SUMMARY", "Unknown")),
                             str(dtstart),
                             str(dtend),
                             str(event["RRULE"]),
@@ -356,7 +358,7 @@ class ICalEvents:
                     _LOGGER.error(
                         "Exception %s in starts/ends: %s - Start: %s - End: %s, RRule: %s",
                         str(e),
-                        str(event["SUMMARY"]),
+                        str(event.get("SUMMARY", "Unknown")),
                         str(dtstart),
                         str(dtend),
                         str(event["RRULE"]),
@@ -387,7 +389,7 @@ class ICalEvents:
                         if _LOGGER.isEnabledFor(logging.DEBUG):
                             _LOGGER.debug(
                                 "Old event 1 %s - ended %s",
-                                event["SUMMARY"],
+                                event.get("SUMMARY", "Unknown"),
                                 str(event["DTEND"].dt),
                             )
                         continue
@@ -403,7 +405,7 @@ class ICalEvents:
                         if _LOGGER.isEnabledFor(logging.DEBUG):
                             _LOGGER.debug(
                                 "Old event 2 %s - ended %s",
-                                event["SUMMARY"],
+                                event.get("SUMMARY", "Unknown"),
                                 str(event["DTEND"].dt),
                             )
                         continue
