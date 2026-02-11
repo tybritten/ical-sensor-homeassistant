@@ -12,9 +12,10 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/tybritten/ical-sensor-homeassistant/issues",
   "requirements": [
-    "icalendar==5.0.7"
+    "icalendar>=6.1.0,<7.0.0",
+    "recurring-ical-events>=3.8.0"
   ],
   "ssdp": [],
-  "version": "1.8.1",
+  "version": "1.9.0",
   "zeroconf": []
 }
