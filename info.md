@@ -1,3 +1,9 @@
+## Upgrading to v1.9.0
+
+v1.9.0 upgrades `icalendar` from 5.x to 6.x and adds a new dependency (`recurring-ical-events`). If HA fails to load the integration after upgrading, the old `icalendar 5.x` package is still cached. To fix this, **restart Home Assistant twice**. If that doesn't help, run `pip install --force-reinstall "icalendar>=6.1.0,<7.0.0"` from a terminal/SSH session and restart.
+
+---
+
 # iCal Sensor Support for Home Assistant
 
 This integration will create sensors for the next few future calendar events, called:
