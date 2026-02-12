@@ -7,7 +7,6 @@ from urllib.parse import urlparse
 
 import icalendar
 import recurring_ical_events
-import voluptuous as vol
 
 from homeassistant.components.calendar import CalendarEvent
 from homeassistant.config_entries import ConfigEntry
@@ -21,8 +20,6 @@ from .const import CONF_DAYS, CONF_MAX_EVENTS, DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 
-CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
-
 PLATFORMS = ["sensor", "calendar"]
 
 MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=120)
@@ -33,17 +30,12 @@ def check_event(d: datetime, all_day: bool) -> datetime | date:
     return d.date() if all_day else d
 
 
-def setup(hass: HomeAssistant, config):
-    """Set up this integration with config flow."""
-    return True
-
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up ical from a config entry."""
     config = entry.data
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
-    hass.data[DOMAIN][config.get(CONF_NAME)] = ICalEvents(hass=hass, config=config)
+    hass.data[DOMAIN][entry.entry_id] = ICalEvents(hass=hass, config=config)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -52,17 +44,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
-    config = entry.data
-    unload_ok = all(
-        await asyncio.gather(
-            *[
-                hass.config_entries.async_forward_entry_unload(entry, component)
-                for component in PLATFORMS
-            ]
-        )
-    )
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(config.get(CONF_NAME))
+        hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
 

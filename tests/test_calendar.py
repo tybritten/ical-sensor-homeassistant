@@ -39,6 +39,7 @@ def test_calendar_device_init(mock_hass, mock_ical_events):
         name="test_calendar",
         entity_id="calendar.test_calendar",
         ical_events=mock_ical_events,
+        unique_id="test_entry_id_calendar",
     )
 
     assert device.entity_id == "calendar.test_calendar"
@@ -48,6 +49,19 @@ def test_calendar_device_init(mock_hass, mock_ical_events):
     assert device._offset_reached is False
 
 
+def test_calendar_device_unique_id(mock_hass, mock_ical_events):
+    """Test ICalCalendarEventDevice unique_id property."""
+    device = ICalCalendarEventDevice(
+        hass=mock_hass,
+        name="test_calendar",
+        entity_id="calendar.test_calendar",
+        ical_events=mock_ical_events,
+        unique_id="test_entry_id_calendar",
+    )
+
+    assert device.unique_id == "test_entry_id_calendar"
+
+
 def test_calendar_device_name(mock_hass, mock_ical_events):
     """Test ICalCalendarEventDevice name property."""
     device = ICalCalendarEventDevice(
@@ -55,6 +69,7 @@ def test_calendar_device_name(mock_hass, mock_ical_events):
         name="test_calendar",
         entity_id="calendar.test_calendar",
         ical_events=mock_ical_events,
+        unique_id="test_entry_id_calendar",
     )
 
     assert device.name == "test_calendar"
@@ -67,6 +82,7 @@ def test_calendar_device_event(mock_hass, mock_ical_events):
         name="test_calendar",
         entity_id="calendar.test_calendar",
         ical_events=mock_ical_events,
+        unique_id="test_entry_id_calendar",
     )
 
     # Initially should be None
@@ -90,6 +106,7 @@ def test_calendar_device_extra_state_attributes(mock_hass, mock_ical_events):
         name="test_calendar",
         entity_id="calendar.test_calendar",
         ical_events=mock_ical_events,
+        unique_id="test_entry_id_calendar",
     )
 
     # Test with offset not reached
@@ -111,6 +128,7 @@ async def test_calendar_device_async_get_events(mock_hass, mock_ical_events):
         name="test_calendar",
         entity_id="calendar.test_calendar",
         ical_events=mock_ical_events,
+        unique_id="test_entry_id_calendar",
     )
 
     start_date = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
@@ -143,6 +161,7 @@ async def test_calendar_device_async_update(mock_hass, mock_ical_events):
         name="test_calendar",
         entity_id="calendar.test_calendar",
         ical_events=mock_ical_events,
+        unique_id="test_entry_id_calendar",
     )
 
     # Mock the copy.deepcopy to return the same event
@@ -170,6 +189,7 @@ async def test_calendar_device_async_update_with_no_event(mock_hass):
         name="test_calendar",
         entity_id="calendar.test_calendar",
         ical_events=ical_events,
+        unique_id="test_entry_id_calendar",
     )
 
     await device.async_update()
@@ -268,6 +288,7 @@ async def test_calendar_device_async_update_all_day(mock_hass):
         name="test_calendar",
         entity_id="calendar.test_calendar",
         ical_events=ical_events,
+        unique_id="test_entry_id_calendar",
     )
 
     await device.async_update()
@@ -302,6 +323,7 @@ async def test_calendar_device_async_update_timed_event(mock_hass):
         name="test_calendar",
         entity_id="calendar.test_calendar",
         ical_events=ical_events,
+        unique_id="test_entry_id_calendar",
     )
 
     await device.async_update()

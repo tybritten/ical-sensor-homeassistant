@@ -16,6 +16,6 @@
     "recurring-ical-events>=3.8.0"
   ],
   "ssdp": [],
-  "version": "1.9.0",
+  "version": "1.10.0",
   "zeroconf": []
 }

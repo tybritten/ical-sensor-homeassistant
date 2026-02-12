@@ -47,6 +47,7 @@ def test_sensor_init(mock_hass, mock_ical_events):
         ical_events=mock_ical_events,
         sensor_name="test_calendar",
         event_number=0,
+        entry_id="test_entry_id",
     )
 
     assert sensor._event_number == 0
@@ -71,9 +72,10 @@ def test_sensor_unique_id(mock_hass, mock_ical_events):
         ical_events=mock_ical_events,
         sensor_name="test_calendar",
         event_number=0,
+        entry_id="test_entry_id",
     )
 
-    assert sensor.unique_id == "test_calendar_event_0"
+    assert sensor.unique_id == "test_entry_id_event_0"
 
 
 def test_sensor_name(mock_hass, mock_ical_events):
@@ -83,6 +85,7 @@ def test_sensor_name(mock_hass, mock_ical_events):
         ical_events=mock_ical_events,
         sensor_name="test_calendar",
         event_number=0,
+        entry_id="test_entry_id",
     )
 
     # Name should be None initially since event attributes haven't been set
@@ -98,6 +101,7 @@ def test_sensor_icon(mock_hass, mock_ical_events):
         ical_events=mock_ical_events,
         sensor_name="test_calendar",
         event_number=0,
+        entry_id="test_entry_id",
     )
 
     assert sensor.icon == ICON
@@ -110,6 +114,7 @@ def test_sensor_state(mock_hass, mock_ical_events):
         ical_events=mock_ical_events,
         sensor_name="test_calendar",
         event_number=0,
+        entry_id="test_entry_id",
     )
 
     # State should be None initially
@@ -123,6 +128,7 @@ def test_sensor_extra_state_attributes(mock_hass, mock_ical_events):
         ical_events=mock_ical_events,
         sensor_name="test_calendar",
         event_number=0,
+        entry_id="test_entry_id",
     )
 
     # Should return the event attributes
@@ -142,6 +148,7 @@ def test_sensor_available(mock_hass, mock_ical_events):
         ical_events=mock_ical_events,
         sensor_name="test_calendar",
         event_number=0,
+        entry_id="test_entry_id",
     )
 
     # Should be False initially since start is None
@@ -156,6 +163,7 @@ async def test_sensor_async_update_with_event(mock_hass, mock_ical_events):
         ical_events=mock_ical_events,
         sensor_name="test_calendar",
         event_number=0,
+        entry_id="test_entry_id",
     )
 
     await sensor.async_update()
@@ -181,6 +189,7 @@ async def test_sensor_async_update_with_no_more_events(mock_hass, mock_ical_even
         ical_events=mock_ical_events,
         sensor_name="test_calendar",
         event_number=5,  # This is beyond the number of events in the calendar
+        entry_id="test_entry_id",
     )
 
     await sensor.async_update()
@@ -222,6 +231,7 @@ async def test_sensor_async_update_with_all_day_event(mock_hass):
         ical_events=ical_events,
         sensor_name="test_calendar",
         event_number=0,
+        entry_id="test_entry_id",
     )
 
     await sensor.async_update()

@@ -36,9 +36,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     entity_id = generate_entity_id(ENTITY_ID_FORMAT, DOMAIN + " " + name, hass=hass)
 
-    ical_events = hass.data[DOMAIN][name]
+    ical_events = hass.data[DOMAIN][config_entry.entry_id]
 
-    calendar = ICalCalendarEventDevice(hass, name, entity_id, ical_events)
+    calendar = ICalCalendarEventDevice(
+        hass, name, entity_id, ical_events,
+        unique_id=f"{config_entry.entry_id}_calendar",
+    )
 
     async_add_entities([calendar], True)
 
@@ -46,9 +49,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class ICalCalendarEventDevice(CalendarEntity):
     """A device for getting the next Task from a WebDav Calendar."""
 
-    def __init__(self, hass, name, entity_id, ical_events):
+    def __init__(self, hass, name, entity_id, ical_events, *, unique_id: str):
         """Create the iCal Calendar Event Device."""
         self.entity_id = entity_id
+        self._attr_unique_id = unique_id
         self._event = None
         self._name = name
         self._offset_reached = False
