@@ -1,6 +1,6 @@
 """Tests for the sensor platform."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
@@ -22,16 +22,16 @@ def mock_ical_events():
     ical_events.calendar = [
         {
             "summary": "Test Event 1",
-            "start": datetime(2023, 1, 1, 12, 0, 0),
-            "end": datetime(2023, 1, 1, 13, 0, 0),
+            "start": datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            "end": datetime(2023, 1, 1, 13, 0, 0, tzinfo=timezone.utc),
             "location": "Test Location 1",
             "description": "Test Description 1",
             "all_day": False,
         },
         {
             "summary": "Test Event 2",
-            "start": datetime(2023, 1, 2, 14, 0, 0),
-            "end": datetime(2023, 1, 2, 15, 0, 0),
+            "start": datetime(2023, 1, 2, 14, 0, 0, tzinfo=timezone.utc),
+            "end": datetime(2023, 1, 2, 15, 0, 0, tzinfo=timezone.utc),
             "location": "Test Location 2",
             "description": "Test Description 2",
             "all_day": False,
@@ -166,7 +166,10 @@ async def test_sensor_async_update_with_event(mock_hass, mock_ical_events):
         entry_id="test_entry_id",
     )
 
-    await sensor.async_update()
+    # Mock dt_util.now() to return a time before the test events
+    with patch("custom_components.ical.sensor.dt_util") as mock_dt_util:
+        mock_dt_util.now.return_value = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        await sensor.async_update()
 
     # Verify that ical_events.update was called
     mock_ical_events.update.assert_called_once()
@@ -174,8 +177,8 @@ async def test_sensor_async_update_with_event(mock_hass, mock_ical_events):
     # Verify that the state and attributes were updated
     assert sensor.state is not None
     assert sensor._event_attributes["summary"] == "Test Event 1"
-    assert sensor._event_attributes["start"] == datetime(2023, 1, 1, 12, 0, 0)
-    assert sensor._event_attributes["end"] == datetime(2023, 1, 1, 13, 0, 0)
+    assert sensor._event_attributes["start"] == datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    assert sensor._event_attributes["end"] == datetime(2023, 1, 1, 13, 0, 0, tzinfo=timezone.utc)
     assert sensor._event_attributes["location"] == "Test Location 1"
     assert sensor._event_attributes["description"] == "Test Description 1"
     assert sensor.available is True
@@ -192,7 +195,10 @@ async def test_sensor_async_update_with_no_more_events(mock_hass, mock_ical_even
         entry_id="test_entry_id",
     )
 
-    await sensor.async_update()
+    # Mock dt_util.now() to return a time before the test events
+    with patch("custom_components.ical.sensor.dt_util") as mock_dt_util:
+        mock_dt_util.now.return_value = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        await sensor.async_update()
 
     # Verify that ical_events.update was called
     mock_ical_events.update.assert_called_once()
@@ -218,8 +224,8 @@ async def test_sensor_async_update_with_all_day_event(mock_hass):
     ical_events.calendar = [
         {
             "summary": "All Day Event",
-            "start": datetime(2023, 1, 1, 0, 0, 0),
-            "end": datetime(2023, 1, 2, 0, 0, 0),
+            "start": datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+            "end": datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
             "location": "Test Location",
             "description": "Test Description",
             "all_day": True,
@@ -234,7 +240,10 @@ async def test_sensor_async_update_with_all_day_event(mock_hass):
         entry_id="test_entry_id",
     )
 
-    await sensor.async_update()
+    # Mock dt_util.now() to return a time before the test event
+    with patch("custom_components.ical.sensor.dt_util") as mock_dt_util:
+        mock_dt_util.now.return_value = datetime(2022, 12, 31, 0, 0, 0, tzinfo=timezone.utc)
+        await sensor.async_update()
 
     # Verify the state format for all-day events
     assert sensor.state == "All Day Event - 1 January 2023"
@@ -252,7 +261,52 @@ async def test_sensor_custom_date_format(mock_hass, mock_ical_events):
         date_format="%Y-%m-%d",
     )
 
-    await sensor.async_update()
+    # Mock dt_util.now() to return a time before the test events
+    with patch("custom_components.ical.sensor.dt_util") as mock_dt_util:
+        mock_dt_util.now.return_value = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        await sensor.async_update()
 
     # Verify the state uses the custom date format
     assert sensor.state == "Test Event 1 - 2023-01-01 12:00"
+
+
+@pytest.mark.asyncio
+async def test_sensor_async_update_filters_past_events(mock_hass):
+    """Test that sensors only show upcoming events, not past ones."""
+    ical_events = MagicMock()
+    ical_events.name = "test_calendar"
+    ical_events.update = AsyncMock()
+    ical_events.calendar = [
+        {
+            "summary": "Past Event",
+            "start": datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            "end": datetime(2023, 1, 1, 13, 0, 0, tzinfo=timezone.utc),
+            "location": "",
+            "description": "",
+            "all_day": False,
+        },
+        {
+            "summary": "Future Event",
+            "start": datetime(2023, 1, 3, 14, 0, 0, tzinfo=timezone.utc),
+            "end": datetime(2023, 1, 3, 15, 0, 0, tzinfo=timezone.utc),
+            "location": "",
+            "description": "",
+            "all_day": False,
+        },
+    ]
+
+    sensor = ICalSensor(
+        hass=mock_hass,
+        ical_events=ical_events,
+        sensor_name="test_calendar",
+        event_number=0,
+        entry_id="test_entry_id",
+    )
+
+    # Mock dt_util.now() to a time between the two events
+    with patch("custom_components.ical.sensor.dt_util") as mock_dt_util:
+        mock_dt_util.now.return_value = datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
+        await sensor.async_update()
+
+    # Sensor should show the future event, skipping the past one
+    assert sensor._event_attributes["summary"] == "Future Event"

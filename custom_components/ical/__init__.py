@@ -28,6 +28,9 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor", "calendar"]
 
+# Number of days of past events to keep for the calendar entity
+CALENDAR_HISTORY_DAYS = 30
+
 
 def check_event(d: datetime, all_day: bool) -> datetime | date:
     """Return date object for all-day events, datetime otherwise."""
@@ -117,7 +120,9 @@ class ICalEvents:
             event_list = await loop.run_in_executor(
                 None, icalendar.Calendar.from_ical, text.replace("\x00", "")
             )
-            start_of_events = dt_util.start_of_local_day()
+            start_of_events = dt_util.start_of_local_day() - timedelta(
+                days=CALENDAR_HISTORY_DAYS
+            )
             end_of_events = dt_util.start_of_local_day() + timedelta(days=self.days)
 
             self.calendar = await self._ical_parser(
@@ -179,7 +184,7 @@ class ICalEvents:
         return sorted(events, key=lambda k: k["start"])
 
     def _ical_event_dict(self, start, end, from_date, event):
-        """Ensure that events are within the start and end."""
+        """Build event dict from a parsed iCal event."""
 
         # Skip events where end is before start (can happen with
         # overnight events after timezone conversion, see issue #160)
@@ -192,25 +197,6 @@ class ICalEvents:
             )
             return None
 
-        # Skip this event if it's in the past
-        if end.date() < from_date.date():
-            # Only log if we're at debug level to avoid performance impact
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("This event has already ended")
-            return None
-        # Ignore events that ended this midnight (but not all-day events,
-        # which legitimately start/end at midnight — see issue #54).
-        if (
-            not self.all_day
-            and end.date() == from_date.date()
-            and end.hour == 0
-            and end.minute == 0
-            and end.second == 0
-        ):
-            # Only log if we're at debug level to avoid performance impact
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("This event has already ended")
-            return None
         # Only log if we're at debug level to avoid performance impact
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(

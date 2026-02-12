@@ -128,7 +128,7 @@ async def test_async_get_events(mock_hass, basic_config):
 
 @pytest.mark.asyncio
 async def test_ical_event_dict_with_past_event(mock_hass, basic_config):
-    """Test _ical_event_dict with past event."""
+    """Test _ical_event_dict includes past events (for calendar entity)."""
     ical_events = ICalEvents(hass=mock_hass, config=basic_config)
 
     from_date = datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
@@ -139,10 +139,12 @@ async def test_ical_event_dict_with_past_event(mock_hass, basic_config):
     event = MagicMock()
     event.get.return_value = "Past Event"
 
-    result = ical_events._ical_event_dict(start, end, from_date, event)
+    with patch("homeassistant.util.dt.DEFAULT_TIME_ZONE", timezone.utc):
+        result = ical_events._ical_event_dict(start, end, from_date, event)
 
-    # Should return None for past events
-    assert result is None
+    # Past events should be included (filtered later by sensors, not here)
+    assert result is not None
+    assert result["summary"] == "Past Event"
 
 
 @pytest.mark.asyncio
@@ -266,8 +268,8 @@ async def test_async_get_events_all_day(mock_hass, basic_config):
 
 
 @pytest.mark.asyncio
-async def test_ical_event_dict_all_day_not_filtered_at_midnight(mock_hass, basic_config):
-    """Test all-day events are not filtered out by the midnight check (issue #54)."""
+async def test_ical_event_dict_all_day_event(mock_hass, basic_config):
+    """Test all-day events with midnight start/end are handled correctly."""
     ical_events = ICalEvents(hass=mock_hass, config=basic_config)
     ical_events.all_day = True
 
@@ -282,6 +284,5 @@ async def test_ical_event_dict_all_day_not_filtered_at_midnight(mock_hass, basic
     with patch("homeassistant.util.dt.DEFAULT_TIME_ZONE", timezone.utc):
         result = ical_events._ical_event_dict(start, end, from_date, event)
 
-    # All-day event should NOT be filtered out on its own day
     assert result is not None
     assert result["summary"] == "All Day Event"

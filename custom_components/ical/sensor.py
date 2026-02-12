@@ -7,6 +7,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import CONF_DATE_FORMAT, CONF_MAX_EVENTS, DEFAULT_DATE_FORMAT, DOMAIN, ICON
@@ -123,8 +124,10 @@ class ICalSensor(SensorEntity):
 
         await self.ical_events.update()
 
-        event_list = self.ical_events.calendar
-        # _LOGGER.debug(f"Event List: {event_list}")
+        all_events = self.ical_events.calendar
+        # Sensors show upcoming events only — filter out past events
+        now = dt_util.now()
+        event_list = [e for e in all_events if e["end"] > now]
         if event_list and (self._event_number < len(event_list)):
             val = event_list[self._event_number]
             name = val.get("summary", "Unknown")
