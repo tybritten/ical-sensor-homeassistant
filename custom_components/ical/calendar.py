@@ -9,7 +9,6 @@ from homeassistant.components.calendar import (
     CalendarEntity,
     CalendarEvent,
     extract_offset,
-    get_date,
     is_offset_reached,
 )
 from homeassistant.const import CONF_NAME

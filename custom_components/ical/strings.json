@@ -18,5 +18,17 @@
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "max_events": "Number of event sensors",
+          "days": "Days into the future to fetch",
+          "date_format": "Date format (strftime)",
+          "update_interval": "Update interval (seconds)"
+        }
+      }
+    }
   }
 }

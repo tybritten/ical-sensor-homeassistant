@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_MAX_EVENTS, DOMAIN, ICON
+from .const import CONF_DATE_FORMAT, CONF_MAX_EVENTS, DEFAULT_DATE_FORMAT, DOMAIN, ICON
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,9 +18,10 @@ async def async_setup_entry(
     hass: HomeAssistant, config_entry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the iCal Sensor."""
-    config = config_entry.data
+    config = {**config_entry.data, **config_entry.options}
     name = config.get(CONF_NAME)
     max_events = config.get(CONF_MAX_EVENTS)
+    date_format = config.get(CONF_DATE_FORMAT, DEFAULT_DATE_FORMAT)
 
     ical_events = hass.data[DOMAIN][config_entry.entry_id]
     await ical_events.update()
@@ -44,6 +45,7 @@ async def async_setup_entry(
             ICalSensor(
                 hass, ical_events, DOMAIN + " " + name, eventnumber,
                 entry_id=config_entry.entry_id,
+                date_format=date_format,
             )
         )
 
@@ -61,7 +63,7 @@ class ICalSensor(SensorEntity):
 
     def __init__(
         self, hass: HomeAssistant, ical_events, sensor_name, event_number,
-        *, entry_id: str,
+        *, entry_id: str, date_format: str = DEFAULT_DATE_FORMAT,
     ) -> None:
         """Initialize the sensor.
 
@@ -73,6 +75,7 @@ class ICalSensor(SensorEntity):
         self._hass = hass
         self.ical_events = ical_events
         self._entry_id = entry_id
+        self._date_format = date_format
         self._event_attributes = {
             "summary": None,
             "description": None,
@@ -146,7 +149,7 @@ class ICalSensor(SensorEntity):
                 start - datetime.now(start.tzinfo) + timedelta(days=1)
             ).days
             self._event_attributes["all_day"] = val.get("all_day")
-            self._state = f"{name} - {start.strftime('%-d %B %Y')}"
+            self._state = f"{name} - {start.strftime(self._date_format)}"
             if not val.get("all_day"):
                 self._state += f" {start.strftime('%H:%M')}"
             # self._is_available = True

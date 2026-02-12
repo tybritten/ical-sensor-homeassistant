@@ -7,10 +7,17 @@ from homeassistant import config_entries, core, exceptions
 from homeassistant.const import CONF_NAME, CONF_URL, CONF_VERIFY_SSL
 import homeassistant.helpers.config_validation as cv
 
-from .const import CONF_DAYS, CONF_MAX_EVENTS, DOMAIN
-
-DEFAULT_MAX_EVENTS = 5
-DEFAULT_DAYS = 365
+from .const import (
+    CONF_DATE_FORMAT,
+    CONF_DAYS,
+    CONF_MAX_EVENTS,
+    CONF_UPDATE_INTERVAL,
+    DEFAULT_DATE_FORMAT,
+    DEFAULT_DAYS,
+    DEFAULT_MAX_EVENTS,
+    DEFAULT_UPDATE_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,6 +81,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        """Get the options flow for this handler."""
+        return OptionsFlowHandler()
+
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
         errors = {}
@@ -101,3 +113,49 @@ class CannotConnect(exceptions.HomeAssistantError):
 
 class InvalidAuth(exceptions.HomeAssistantError):
     """Error to indicate there is invalid auth."""
+
+
+class OptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle options flow for ical."""
+
+    async def async_step_init(self, user_input=None):
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        options = self.config_entry.options
+        data = self.config_entry.data
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_MAX_EVENTS,
+                        default=options.get(
+                            CONF_MAX_EVENTS,
+                            data.get(CONF_MAX_EVENTS, DEFAULT_MAX_EVENTS),
+                        ),
+                    ): cv.positive_int,
+                    vol.Optional(
+                        CONF_DAYS,
+                        default=options.get(
+                            CONF_DAYS,
+                            data.get(CONF_DAYS, DEFAULT_DAYS),
+                        ),
+                    ): cv.positive_int,
+                    vol.Optional(
+                        CONF_DATE_FORMAT,
+                        default=options.get(
+                            CONF_DATE_FORMAT, DEFAULT_DATE_FORMAT
+                        ),
+                    ): cv.string,
+                    vol.Optional(
+                        CONF_UPDATE_INTERVAL,
+                        default=options.get(
+                            CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+                        ),
+                    ): cv.positive_int,
+                }
+            ),
+        )

@@ -263,3 +263,25 @@ async def test_async_get_events_all_day(mock_hass, basic_config):
         assert not isinstance(call_args[0], datetime)
         assert isinstance(call_args[1], date)
         assert not isinstance(call_args[1], datetime)
+
+
+@pytest.mark.asyncio
+async def test_ical_event_dict_all_day_not_filtered_at_midnight(mock_hass, basic_config):
+    """Test all-day events are not filtered out by the midnight check (issue #54)."""
+    ical_events = ICalEvents(hass=mock_hass, config=basic_config)
+    ical_events.all_day = True
+
+    # All-day event: start and end are both midnight on the same day
+    from_date = datetime(2023, 6, 24, 0, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2023, 6, 24, 0, 0, 0, tzinfo=timezone.utc)
+    end = datetime(2023, 6, 24, 0, 0, 0, tzinfo=timezone.utc)
+
+    event = MagicMock()
+    event.get = MagicMock(return_value="All Day Event")
+
+    with patch("homeassistant.util.dt.DEFAULT_TIME_ZONE", timezone.utc):
+        result = ical_events._ical_event_dict(start, end, from_date, event)
+
+    # All-day event should NOT be filtered out on its own day
+    assert result is not None
+    assert result["summary"] == "All Day Event"

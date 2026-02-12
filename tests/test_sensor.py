@@ -238,3 +238,21 @@ async def test_sensor_async_update_with_all_day_event(mock_hass):
 
     # Verify the state format for all-day events
     assert sensor.state == "All Day Event - 1 January 2023"
+
+
+@pytest.mark.asyncio
+async def test_sensor_custom_date_format(mock_hass, mock_ical_events):
+    """Test ICalSensor with custom date format."""
+    sensor = ICalSensor(
+        hass=mock_hass,
+        ical_events=mock_ical_events,
+        sensor_name="test_calendar",
+        event_number=0,
+        entry_id="test_entry_id",
+        date_format="%Y-%m-%d",
+    )
+
+    await sensor.async_update()
+
+    # Verify the state uses the custom date format
+    assert sensor.state == "Test Event 1 - 2023-01-01 12:00"
