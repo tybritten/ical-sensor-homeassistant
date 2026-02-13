@@ -90,3 +90,10 @@ def test_invalid_auth_exception():
     """Test InvalidAuth exception."""
     with pytest.raises(config_flow.InvalidAuth):
         raise config_flow.InvalidAuth()
+
+
+def test_config_flow_has_options_flow():
+    """Test that ConfigFlow provides an options flow handler."""
+    mock_entry = MagicMock()
+    handler = config_flow.ConfigFlow.async_get_options_flow(mock_entry)
+    assert isinstance(handler, config_flow.OptionsFlowHandler)

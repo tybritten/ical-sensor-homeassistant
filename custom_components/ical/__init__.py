@@ -7,7 +7,6 @@ from urllib.parse import urlparse
 
 import icalendar
 import recurring_ical_events
-import voluptuous as vol
 
 from homeassistant.components.calendar import CalendarEvent
 from homeassistant.config_entries import ConfigEntry
@@ -16,16 +15,21 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import Throttle, dt as dt_util
 
-from .const import CONF_DAYS, CONF_MAX_EVENTS, DOMAIN
+from .const import (
+    CONF_DAYS,
+    CONF_MAX_EVENTS,
+    CONF_UPDATE_INTERVAL,
+    DEFAULT_UPDATE_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
-CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
-
 PLATFORMS = ["sensor", "calendar"]
 
-MIN_TIME_BETWEEN_UPDATES = timedelta(seconds=120)
+# Number of days of past events to keep for the calendar entity
+CALENDAR_HISTORY_DAYS = 30
 
 
 def check_event(d: datetime, all_day: bool) -> datetime | date:
@@ -33,36 +37,33 @@ def check_event(d: datetime, all_day: bool) -> datetime | date:
     return d.date() if all_day else d
 
 
-def setup(hass: HomeAssistant, config):
-    """Set up this integration with config flow."""
-    return True
-
-
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up ical from a config entry."""
-    config = entry.data
+    config = {**entry.data, **entry.options}
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
-    hass.data[DOMAIN][config.get(CONF_NAME)] = ICalEvents(hass=hass, config=config)
 
+    update_interval = config.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
+    hass.data[DOMAIN][entry.entry_id] = ICalEvents(
+        hass=hass, config=config, update_interval=update_interval,
+    )
+
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
 
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry):
+    """Reload the config entry when options change."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Unload a config entry."""
-    config = entry.data
-    unload_ok = all(
-        await asyncio.gather(
-            *[
-                hass.config_entries.async_forward_entry_unload(entry, component)
-                for component in PLATFORMS
-            ]
-        )
-    )
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(config.get(CONF_NAME))
+        hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
 
@@ -70,7 +71,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
 class ICalEvents:
     """Get a list of events."""
 
-    def __init__(self, hass: HomeAssistant, config):
+    def __init__(self, hass: HomeAssistant, config, update_interval=DEFAULT_UPDATE_INTERVAL):
         """Set up a calendar object."""
         self.hass = hass
         self.name = config.get(CONF_NAME)
@@ -81,6 +82,7 @@ class ICalEvents:
         self.calendar = []
         self.event = None
         self.all_day = False
+        self.update = Throttle(timedelta(seconds=update_interval))(self._do_update)
 
     async def async_get_events(self, hass: HomeAssistant, start_date, end_date):
         """Get list of upcoming events."""
@@ -101,8 +103,7 @@ class ICalEvents:
                     # events.append(event)
         return events
 
-    @Throttle(MIN_TIME_BETWEEN_UPDATES)
-    async def update(self):
+    async def _do_update(self):
         """Update list of upcoming events."""
         parts = urlparse(self.url)
         if parts.scheme == "file":
@@ -119,7 +120,9 @@ class ICalEvents:
             event_list = await loop.run_in_executor(
                 None, icalendar.Calendar.from_ical, text.replace("\x00", "")
             )
-            start_of_events = dt_util.start_of_local_day()
+            start_of_events = dt_util.start_of_local_day() - timedelta(
+                days=CALENDAR_HISTORY_DAYS
+            )
             end_of_events = dt_util.start_of_local_day() + timedelta(days=self.days)
 
             self.calendar = await self._ical_parser(
@@ -181,7 +184,7 @@ class ICalEvents:
         return sorted(events, key=lambda k: k["start"])
 
     def _ical_event_dict(self, start, end, from_date, event):
-        """Ensure that events are within the start and end."""
+        """Build event dict from a parsed iCal event."""
 
         # Skip events where end is before start (can happen with
         # overnight events after timezone conversion, see issue #160)
@@ -194,23 +197,6 @@ class ICalEvents:
             )
             return None
 
-        # Skip this event if it's in the past
-        if end.date() < from_date.date():
-            # Only log if we're at debug level to avoid performance impact
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("This event has already ended")
-            return None
-        # Ignore events that ended this midnight.
-        if (
-            end.date() == from_date.date()
-            and end.hour == 0
-            and end.minute == 0
-            and end.second == 0
-        ):
-            # Only log if we're at debug level to avoid performance impact
-            if _LOGGER.isEnabledFor(logging.DEBUG):
-                _LOGGER.debug("This event has already ended")
-            return None
         # Only log if we're at debug level to avoid performance impact
         if _LOGGER.isEnabledFor(logging.DEBUG):
             _LOGGER.debug(

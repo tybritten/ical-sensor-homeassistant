@@ -128,7 +128,7 @@ async def test_async_get_events(mock_hass, basic_config):
 
 @pytest.mark.asyncio
 async def test_ical_event_dict_with_past_event(mock_hass, basic_config):
-    """Test _ical_event_dict with past event."""
+    """Test _ical_event_dict includes past events (for calendar entity)."""
     ical_events = ICalEvents(hass=mock_hass, config=basic_config)
 
     from_date = datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc)
@@ -139,10 +139,12 @@ async def test_ical_event_dict_with_past_event(mock_hass, basic_config):
     event = MagicMock()
     event.get.return_value = "Past Event"
 
-    result = ical_events._ical_event_dict(start, end, from_date, event)
+    with patch("homeassistant.util.dt.DEFAULT_TIME_ZONE", timezone.utc):
+        result = ical_events._ical_event_dict(start, end, from_date, event)
 
-    # Should return None for past events
-    assert result is None
+    # Past events should be included (filtered later by sensors, not here)
+    assert result is not None
+    assert result["summary"] == "Past Event"
 
 
 @pytest.mark.asyncio
@@ -263,3 +265,24 @@ async def test_async_get_events_all_day(mock_hass, basic_config):
         assert not isinstance(call_args[0], datetime)
         assert isinstance(call_args[1], date)
         assert not isinstance(call_args[1], datetime)
+
+
+@pytest.mark.asyncio
+async def test_ical_event_dict_all_day_event(mock_hass, basic_config):
+    """Test all-day events with midnight start/end are handled correctly."""
+    ical_events = ICalEvents(hass=mock_hass, config=basic_config)
+    ical_events.all_day = True
+
+    # All-day event: start and end are both midnight on the same day
+    from_date = datetime(2023, 6, 24, 0, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2023, 6, 24, 0, 0, 0, tzinfo=timezone.utc)
+    end = datetime(2023, 6, 24, 0, 0, 0, tzinfo=timezone.utc)
+
+    event = MagicMock()
+    event.get = MagicMock(return_value="All Day Event")
+
+    with patch("homeassistant.util.dt.DEFAULT_TIME_ZONE", timezone.utc):
+        result = ical_events._ical_event_dict(start, end, from_date, event)
+
+    assert result is not None
+    assert result["summary"] == "All Day Event"

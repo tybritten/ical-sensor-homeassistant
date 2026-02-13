@@ -3,47 +3,58 @@
 from datetime import datetime, timedelta
 import logging
 
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import Entity, generate_entity_id
+from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_MAX_EVENTS, DOMAIN, ICON
+from .const import CONF_DATE_FORMAT, CONF_MAX_EVENTS, DEFAULT_DATE_FORMAT, DOMAIN, ICON
 
 _LOGGER = logging.getLogger(__name__)
-
-
-# async def async_setup_entry(hass, config, add_entities, discovery_info=None):
-async def async_setup_platform(
-    hass: HomeAssistant, config, add_entities, discovery_info=None
-):
-    """Set up this integration with config flow."""
-    return True
 
 
 async def async_setup_entry(
     hass: HomeAssistant, config_entry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the iCal Sensor."""
-    config = config_entry.data
+    config = {**config_entry.data, **config_entry.options}
     name = config.get(CONF_NAME)
     max_events = config.get(CONF_MAX_EVENTS)
+    date_format = config.get(CONF_DATE_FORMAT, DEFAULT_DATE_FORMAT)
 
-    ical_events = hass.data[DOMAIN][name]
+    ical_events = hass.data[DOMAIN][config_entry.entry_id]
     await ical_events.update()
     if ical_events.calendar is None:
         _LOGGER.error("Unable to fetch iCal")
         return False
 
+    # Migrate old name-based unique_ids to entry_id-based
+    ent_reg = er.async_get(hass)
+    for eventnumber in range(max_events):
+        old_uid = f"{name.lower()}_event_{eventnumber}"
+        new_uid = f"{config_entry.entry_id}_event_{eventnumber}"
+        if old_uid != new_uid:
+            existing = ent_reg.async_get_entity_id("sensor", DOMAIN, old_uid)
+            if existing is not None:
+                ent_reg.async_update_entity(existing, new_unique_id=new_uid)
+
     sensors = []
     for eventnumber in range(max_events):
-        sensors.append(ICalSensor(hass, ical_events, DOMAIN + " " + name, eventnumber))
+        sensors.append(
+            ICalSensor(
+                hass, ical_events, DOMAIN + " " + name, eventnumber,
+                entry_id=config_entry.entry_id,
+                date_format=date_format,
+            )
+        )
 
     async_add_entities(sensors)
 
 
 # pylint: disable=too-few-public-methods
-class ICalSensor(Entity):
+class ICalSensor(SensorEntity):
     """Implementation of a iCal sensor.
 
     Represents the Nth upcoming event.
@@ -52,7 +63,8 @@ class ICalSensor(Entity):
     """
 
     def __init__(
-        self, hass: HomeAssistant, ical_events, sensor_name, event_number
+        self, hass: HomeAssistant, ical_events, sensor_name, event_number,
+        *, entry_id: str, date_format: str = DEFAULT_DATE_FORMAT,
     ) -> None:
         """Initialize the sensor.
 
@@ -63,11 +75,8 @@ class ICalSensor(Entity):
         self._event_number = event_number
         self._hass = hass
         self.ical_events = ical_events
-        self._entity_id = generate_entity_id(
-            "sensor.{}",
-            f"{sensor_name} event {self._event_number}",
-            hass=self._hass,
-        )
+        self._entry_id = entry_id
+        self._date_format = date_format
         self._event_attributes = {
             "summary": None,
             "description": None,
@@ -82,7 +91,7 @@ class ICalSensor(Entity):
     @property
     def unique_id(self) -> str:
         """Return the unique ID of the sensor."""
-        return f"{self.ical_events.name.lower()}_event_{self._event_number}"
+        return f"{self._entry_id}_event_{self._event_number}"
 
     @property
     def name(self):
@@ -115,8 +124,10 @@ class ICalSensor(Entity):
 
         await self.ical_events.update()
 
-        event_list = self.ical_events.calendar
-        # _LOGGER.debug(f"Event List: {event_list}")
+        all_events = self.ical_events.calendar
+        # Sensors show upcoming events only — filter out past events
+        now = dt_util.now()
+        event_list = [e for e in all_events if e["end"] > now]
         if event_list and (self._event_number < len(event_list)):
             val = event_list[self._event_number]
             name = val.get("summary", "Unknown")
@@ -141,7 +152,7 @@ class ICalSensor(Entity):
                 start - datetime.now(start.tzinfo) + timedelta(days=1)
             ).days
             self._event_attributes["all_day"] = val.get("all_day")
-            self._state = f"{name} - {start.strftime('%-d %B %Y')}"
+            self._state = f"{name} - {start.strftime(self._date_format)}"
             if not val.get("all_day"):
                 self._state += f" {start.strftime('%H:%M')}"
             # self._is_available = True

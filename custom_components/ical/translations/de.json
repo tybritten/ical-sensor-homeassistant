@@ -20,5 +20,17 @@
             }
         }
     },
+    "options": {
+        "step": {
+            "init": {
+                "data": {
+                    "max_events": "Anzahl der Termin-Sensoren",
+                    "days": "Tage in der Zukunft abrufen",
+                    "date_format": "Datumsformat (strftime)",
+                    "update_interval": "Aktualisierungsintervall (Sekunden)"
+                }
+            }
+        }
+    },
     "title": "ical"
 }
